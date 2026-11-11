@@ -96,6 +96,8 @@ function openWindow(tab) {
     overlayEl.classList.add('thr-open');
     document.addEventListener('keydown', onKeyDown);
     renderAll();
+    // Запасной путь: если таверна что-то поменяла молча, сверяемся при открытии окна
+    syncWithChat('окно').catch((e) => console.error('[Thread] откат:', e));
 }
 
 function closeWindow() {
@@ -324,26 +326,54 @@ async function evaluate({ quiet = false } = {}) {
 
 /** ⟳ руками: сначала сверяемся с чатом (вдруг что-то удалили), потом оцениваем. */
 async function onRefreshClick() {
-    await syncWithChat();
+    await syncWithChat('⟳');
     const st = getState();
     if (st) st.rerollWait = null; // попросили явно — не ждём следующего сообщения
     evaluate();
 }
 
 /** Удалили сообщения, свайпнули или перегенерировали оценённый ответ — возвращаем отметки. */
-async function syncWithChat() {
+let lastSync = null; // последняя сверка, которая что-то поменяла — для «Последнего ответа судьи»
+
+async function syncWithChat(source = '') {
     const st = getState();
     if (!st) return 0;
     const { undone, why } = rollbackCheck(st);
     const redone = redoCheck(st); // вернулся прежний вариант ответа — возвращаем и его отметки
     if (!undone && !redone) return 0;
-    await saveState();
-    if (redone) showNote('Вернулся прежний вариант ответа — его отметки тоже');
-    else showNote(why === 'del'
-        ? 'Сообщения удалены — отметки вернулись к тому, что было до них'
-        : 'Ответ перегенерирован — отметки старой версии отменены');
+
+    // Сначала заметка и отрисовка, потом сохранение: сохранение во время генерации может подождать,
+    // а показать, что случилось, нужно сразу.
+    const text = redone
+        ? 'Вернулся прежний вариант ответа — его отметки тоже'
+        : why === 'del'
+            ? 'Сообщения удалены — отметки вернулись к тому, что было до них'
+            : 'Ответ перегенерирован — отметки старой версии отменены';
+    showNote(text);
+    lastSync = { at: new Date(), source, undone, redone, why };
+    console.info(`[Thread] сверка (${source || '—'}): отменено ${undone}, возвращено ${redone}${why ? `, причина: ${why}` : ''}`);
     if (isOpen()) renderAll();
+    await saveState();
     return undone + redone;
+}
+
+/**
+ * Генерацию свайпа отменили. Таверна возвращает прежний вариант ответа не сразу и без события
+ * (тихо подменяет сообщение после анимации), поэтому несколько секунд поглядываем сами.
+ */
+let watchTimer = null;
+function watchAfterStop() {
+    clearInterval(watchTimer);
+    let ticks = 0;
+    watchTimer = setInterval(() => {
+        ticks++;
+        syncWithChat('остановка').then((changed) => {
+            if (changed || ticks >= 20) clearInterval(watchTimer);
+        }).catch((e) => {
+            clearInterval(watchTimer);
+            console.error('[Thread] откат:', e);
+        });
+    }, 500);
 }
 
 /** Последним в чате ответил бот (не посреди хода игрока). */
@@ -361,7 +391,7 @@ async function checkAuto() {
     if (busy) return;
     const st = getState();
     if (!st) return;
-    await syncWithChat();
+    await syncWithChat('авто');
     if (!getSettings().auto || !st.touched || !judgeNeeded()) return;
     const total = ctx().chat.length;
     if (st.count > total) st.count = total;
@@ -445,6 +475,7 @@ function settingsHtml() {
                 <details class="thr-details">
                     <summary>Последний ответ судьи</summary>
                     <div class="thr-note" id="thr_last_meta"></div>
+                    <div class="thr-note" id="thr_last_sync"></div>
                     <pre class="thr-pre" id="thr_last_raw"></pre>
                     <details class="thr-details">
                         <summary>Что ушло судье</summary>
@@ -530,6 +561,9 @@ function syncSettings() {
         $('thr_last_raw').textContent = lastJudge.raw || '(пусто)';
         $('thr_last_prompt').textContent = `${lastJudge.system}\n\n────────\n\n${lastJudge.user}`;
     }
+    $('thr_last_sync').textContent = lastSync
+        ? `Последняя сверка с чатом: ${lastSync.at.toLocaleTimeString('ru-RU')} · ${lastSync.source} · отменено оценок: ${lastSync.undone}, возвращено: ${lastSync.redone}`
+        : 'С момента загрузки страницы откатов не было.';
 }
 
 function disarmReset() {
@@ -598,9 +632,10 @@ function onChatChanged() {
     // Данные живут в метаданных чата и читаются заново при каждой отрисовке —
     // между чатами ничего не кэшируем, поэтому и перетекать нечему.
     clearTimeout(autoTimer);
+    clearInterval(watchTimer);
     disarmReset();
     // Ветка от середины чата приносит отметки «из будущего» — возвращаем их к точке ветвления
-    syncWithChat().catch((e) => console.error('[Thread] откат:', e));
+    syncWithChat('смена чата').catch((e) => console.error('[Thread] откат:', e));
     if (isOpen()) renderAll();
 }
 
@@ -609,7 +644,7 @@ function onMessagesChanged() {
 }
 
 function onRolledBackMaybe() {
-    syncWithChat().catch((e) => console.error('[Thread] откат:', e));
+    syncWithChat('событие').catch((e) => console.error('[Thread] откат:', e));
     onMessagesChanged();
 }
 
@@ -625,9 +660,7 @@ jQuery(async () => {
         if (event_types[key]) eventSource.on(event_types[key], onRolledBackMaybe);
     }
     // Отменили генерацию свайпа — таверна возвращает прежний вариант не сразу, сверяемся чуть позже
-    if (event_types.GENERATION_STOPPED) {
-        eventSource.on(event_types.GENERATION_STOPPED, () => setTimeout(onRolledBackMaybe, 400));
-    }
+    if (event_types.GENERATION_STOPPED) eventSource.on(event_types.GENERATION_STOPPED, watchAfterStop);
     if (event_types.MESSAGE_RECEIVED) {
         eventSource.on(event_types.MESSAGE_RECEIVED, () => {
             onMessagesChanged();
