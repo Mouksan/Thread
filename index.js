@@ -2,6 +2,7 @@
 // Порт плагина Storyline (Svetlyachok, Tavo) под SillyTavern.
 // Этап 1: фундамент — окно с вкладками, настройки, у каждого чата свои данные.
 // Этап 2: судья руками — кнопка ⟳, сбор контекста, разбор ответа, сноски, «последний ответ судьи».
+// Этап 3: судья следит сам (раз в N сообщений) и откатывает отметки при свайпах, перегенерации и удалении.
 
 import {
     ctx, getSettings, saveSettings, escapeHtml, clampInt, currentChatId,
@@ -15,6 +16,7 @@ import {
     background, transcript, hearthtideDate, loreMemory, anchorAt, anchorHolds, characterNames, personaName,
 } from './context.js';
 import { requestJudge } from './connection.js';
+import { snapTake, rollbackCheck } from './state.js';
 import { showMarks, showAch, markLineHtml } from './toasts.js';
 import { achIcon, RARITY_LABELS } from './ach.js';
 
@@ -66,7 +68,7 @@ function buildWindow() {
         if (e.target === overlay) closeWindow();
     });
     overlay.querySelector('.thr-close').addEventListener('click', closeWindow);
-    overlay.querySelector('.thr-refresh').addEventListener('click', () => evaluate());
+    overlay.querySelector('.thr-refresh').addEventListener('click', onRefreshClick);
     overlay.querySelector('.thr-tabs').addEventListener('click', (e) => {
         const btn = e.target.closest('.thr-tab');
         if (btn) switchTab(btn.dataset.tab);
@@ -161,9 +163,15 @@ function barCard(title, value, max, note) {
 function overviewHtml(st) {
     const rep = repNow(st);
     const total = Array.isArray(ctx().chat) ? ctx().chat.length : 0;
-    const progress = st.touched
-        ? `оценено до сообщения ${st.count} из ${total}`
-        : `сообщений в чате: ${total} · оценок ещё не было`;
+    let progress = `сообщений в чате: ${total} · оценок ещё не было`;
+    if (st.touched) {
+        const settings = getSettings();
+        const left = Math.max(0, clampInt(settings.everyN, 2, 50, 3) - (total - st.count));
+        const next = !settings.auto ? 'авто выключено'
+            : st.rerollWait != null && total <= st.rerollWait ? 'после отката жду новое сообщение'
+                : left ? `следующая оценка через ${left} сообщ.` : 'следующая оценка — после ответа бота';
+        progress = `оценено до сообщения ${st.count} из ${total} · ${next}`;
+    }
     const feed = st.log.filter((e) => e.count <= total).slice(-5).reverse();
     return `
         ${busy ? '<div class="thr-hint">Судья листает страницы…</div>' : ''}
@@ -237,20 +245,20 @@ function achHtml(st) {
 // ---------- Оценка ----------
 
 /** Судья читает свежий кусок истории и ставит отметки. */
-async function evaluate() {
+async function evaluate({ quiet = false } = {}) {
     if (busy) return;
     const chatId = currentChatId();
     if (!chatId) {
-        toastr.info('Открой чат — судье нечего читать', TOAST_TITLE);
+        if (!quiet) toastr.info('Открой чат — судье нечего читать', TOAST_TITLE);
         return;
     }
     if (!judgeNeeded()) {
-        toastr.info('Все разделы выключены — судье нечего оценивать', TOAST_TITLE);
+        if (!quiet) toastr.info('Все разделы выключены — судье нечего оценивать', TOAST_TITLE);
         return;
     }
     const total = Array.isArray(ctx().chat) ? ctx().chat.length : 0;
     if (!total) {
-        toastr.info('В чате пока нет сообщений', TOAST_TITLE);
+        if (!quiet) toastr.info('В чате пока нет сообщений', TOAST_TITLE);
         return;
     }
 
@@ -285,9 +293,12 @@ async function evaluate() {
 
         const now = getState();
         const sd = date || parseDate(raw);
+        const evId = `E${Date.now().toString(36)}`;
+        snapTake(now, now.count, total, evId); // снимок «до» — на случай свайпа или удаления
         if (sd) now.sdate = { text: sd, at: Date.now() };
-        const env = { total, sd: now.sdate?.text || '', chars: characterNames(), persona: personaName() };
+        const env = { total, sd: now.sdate?.text || '', chars: characterNames(), persona: personaName(), ev: evId };
         const applied = rows.filter((r) => applyRow(now, r, env));
+        now.rerollWait = null;
         now.count = total;
         now.touched = true;
         if (!now.firstAt) now.firstAt = Date.now();
@@ -295,7 +306,7 @@ async function evaluate() {
 
         showAch(applied.filter((r) => r.kind === 'ACH'));
         showMarks(applied.filter((r) => r.kind !== 'ACH' && r.kind !== 'FACT'));
-        if (!applied.length) toastr.info('Судья молчит — за это время ничего не изменилось.', TOAST_TITLE);
+        if (!applied.length && !quiet) toastr.info('Судья молчит — за это время ничего не изменилось.', TOAST_TITLE);
     } catch (error) {
         const message = String(error?.message || error || 'Unknown error').slice(0, 300);
         if (lastJudge) lastJudge.error = message;
@@ -305,6 +316,64 @@ async function evaluate() {
         busy = false;
         renderAll();
     }
+}
+
+/** ⟳ руками: сначала сверяемся с чатом (вдруг что-то удалили), потом оцениваем. */
+async function onRefreshClick() {
+    await syncWithChat();
+    const st = getState();
+    if (st) st.rerollWait = null; // попросили явно — не ждём следующего сообщения
+    evaluate();
+}
+
+/** Удалили сообщения, свайпнули или перегенерировали оценённый ответ — возвращаем отметки. */
+async function syncWithChat() {
+    const st = getState();
+    if (!st) return 0;
+    const { undone, why } = rollbackCheck(st);
+    if (!undone) return 0;
+    await saveState();
+    if (getSettings().toasts) {
+        toastr.info(why === 'del'
+            ? 'Сообщения удалены — отметки вернулись к тому, что было до них'
+            : 'Ответ перегенерирован — отметки старой версии отменены', TOAST_TITLE);
+    }
+    if (isOpen()) renderAll();
+    return undone;
+}
+
+/** Последним в чате ответил бот (не посреди хода игрока). */
+function lastIsBot() {
+    const chat = Array.isArray(ctx().chat) ? ctx().chat : [];
+    for (let i = chat.length - 1; i >= 0; i--) {
+        if (chat[i]?.is_system) continue;
+        return !chat[i].is_user;
+    }
+    return false;
+}
+
+/** Авто: раз в N сообщений после ответа бота. Первую оценку в чате всегда запускает человек. */
+async function checkAuto() {
+    if (busy) return;
+    const st = getState();
+    if (!st) return;
+    await syncWithChat();
+    if (!getSettings().auto || !st.touched || !judgeNeeded()) return;
+    const total = ctx().chat.length;
+    if (st.count > total) st.count = total;
+    if (st.rerollWait != null) { // после отката ждём нового сообщения, а не оцениваем каждый свайп
+        if (total <= st.rerollWait) return;
+        st.rerollWait = null;
+    }
+    if (total - st.count < clampInt(getSettings().everyN, 2, 50, 3)) return;
+    if (lastIsBot()) evaluate({ quiet: true });
+}
+
+let autoTimer = null;
+/** Ответ бота пришёл — даём таверне и другим расширениям дописать сообщение, потом смотрим. */
+function scheduleAuto() {
+    clearTimeout(autoTimer);
+    autoTimer = setTimeout(() => checkAuto().catch((e) => console.error('[Thread] авто:', e)), 1500);
 }
 
 /** Пояснение по-русски; сам текст ошибки остаётся на английском — так его проще гуглить. */
@@ -330,6 +399,7 @@ function settingsHtml() {
 
             <div class="thr-set-group">
                 <label class="checkbox_label" for="thr_auto"><input id="thr_auto" type="checkbox" /> Судья следит сам</label>
+                <div class="thr-note">Первую оценку в каждом чате запускаешь ты кнопкой ⟳, дальше судья смотрит сам после ответов бота.</div>
                 <div class="thr-set-row">
                     <label class="thr-label" for="thr_every">Как часто: раз в N сообщений</label>
                     <input id="thr_every" class="text_pole thr-num" type="number" min="2" max="50" step="1" />
@@ -506,12 +576,20 @@ function addWandButton() {
 function onChatChanged() {
     // Данные живут в метаданных чата и читаются заново при каждой отрисовке —
     // между чатами ничего не кэшируем, поэтому и перетекать нечему.
+    clearTimeout(autoTimer);
     disarmReset();
+    // Ветка от середины чата приносит отметки «из будущего» — возвращаем их к точке ветвления
+    syncWithChat().catch((e) => console.error('[Thread] откат:', e));
     if (isOpen()) renderAll();
 }
 
 function onMessagesChanged() {
     if (isOpen() && activeTab === 'overview' && !busy) renderAll();
+}
+
+function onRolledBackMaybe() {
+    syncWithChat().catch((e) => console.error('[Thread] откат:', e));
+    onMessagesChanged();
 }
 
 jQuery(async () => {
@@ -521,7 +599,14 @@ jQuery(async () => {
 
     const { eventSource, event_types } = ctx();
     eventSource.on(event_types.CHAT_CHANGED, onChatChanged);
-    for (const key of ['MESSAGE_RECEIVED', 'MESSAGE_SENT', 'MESSAGE_DELETED']) {
-        if (event_types[key]) eventSource.on(event_types[key], onMessagesChanged);
+    if (event_types.MESSAGE_SENT) eventSource.on(event_types.MESSAGE_SENT, onMessagesChanged);
+    for (const key of ['MESSAGE_DELETED', 'MESSAGE_SWIPED']) {
+        if (event_types[key]) eventSource.on(event_types[key], onRolledBackMaybe);
+    }
+    if (event_types.MESSAGE_RECEIVED) {
+        eventSource.on(event_types.MESSAGE_RECEIVED, () => {
+            onMessagesChanged();
+            scheduleAuto();
+        });
     }
 });

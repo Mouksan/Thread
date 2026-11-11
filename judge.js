@@ -339,7 +339,7 @@ export function pushLog(st, e) {
  * Возвращает true, если отметка что-то изменила (для сносок).
  */
 export function applyRow(st, r, env) {
-    const stamp = { sd: env.sd || '', count: env.total, at: Date.now() };
+    const stamp = { sd: env.sd || '', count: env.total, at: Date.now(), ev: env.ev }; // ev — id оценки: запись откатится вместе с ней
     // Thread: персону игрока в «отношения к игроку» не записываем
     const known = Object.keys(st.rels).concat(env.chars || []);
     const isPlayer = (n) => Boolean(env.persona) && sameName(env.persona, n);
