@@ -1,11 +1,22 @@
 // Thread — судья сюжета: отношения, навыки и проверки, репутация, метки, обещания, ачивки.
 // Порт плагина Storyline (Svetlyachok, Tavo) под SillyTavern.
 // Этап 1: фундамент — окно с вкладками, настройки, у каждого чата свои данные.
+// Этап 2: судья руками — кнопка ⟳, сбор контекста, разбор ответа, сноски, «последний ответ судьи».
 
 import {
     ctx, getSettings, saveSettings, escapeHtml, clampInt, currentChatId,
-    getState, saveState, META_KEY, repNow, repLevel, modeOf, HIST_DEPTHS, TOAST_TITLE,
+    getState, saveState, META_KEY, repNow, repLevel, relLevel, modeOf, HIST_DEPTHS, TOAST_TITLE,
 } from './store.js';
+import {
+    judgeNeeded, systemPrompt, userPrompt, parse, parseDate, applyRow, ensureSkills,
+    skillList, skillVal, relVal, signed, activeFlags, openQuests, achTitle, LINK_LABELS,
+} from './judge.js';
+import {
+    background, transcript, hearthtideDate, loreMemory, anchorAt, anchorHolds, characterNames, personaName,
+} from './context.js';
+import { requestJudge } from './connection.js';
+import { showMarks, showAch, markLineHtml } from './toasts.js';
+import { achIcon, RARITY_LABELS } from './ach.js';
 
 const TABS = [
     { id: 'overview', label: 'Обзор' },
@@ -21,6 +32,8 @@ let overlayEl = null;
 let activeTab = 'overview';
 let resetArmed = false;
 let resetTimer = null;
+let busy = false;          // судья думает
+let lastJudge = null;      // последний запрос судье — для отладки, живёт до перезагрузки страницы
 
 // ---------- Окно ----------
 
@@ -33,6 +46,7 @@ function buildWindow() {
             <div class="thr-header">
                 <div class="thr-title"><i class="fa-solid fa-diagram-project"></i><span>「 THREAD 」</span></div>
                 <div class="thr-chatname"></div>
+                <button class="thr-icon-btn thr-refresh" type="button" title="Поставить отметки сейчас" aria-label="Поставить отметки сейчас"><i class="fa-solid fa-rotate"></i></button>
                 <button class="thr-icon-btn thr-close" type="button" title="Закрыть"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="thr-tabs" role="tablist"></div>
@@ -52,6 +66,7 @@ function buildWindow() {
         if (e.target === overlay) closeWindow();
     });
     overlay.querySelector('.thr-close').addEventListener('click', closeWindow);
+    overlay.querySelector('.thr-refresh').addEventListener('click', () => evaluate());
     overlay.querySelector('.thr-tabs').addEventListener('click', (e) => {
         const btn = e.target.closest('.thr-tab');
         if (btn) switchTab(btn.dataset.tab);
@@ -111,6 +126,10 @@ function renderAll() {
         pane.classList.toggle('thr-active', pane.dataset.pane === activeTab);
     });
 
+    const refresh = overlayEl.querySelector('.thr-refresh');
+    refresh.classList.toggle('thr-spin', busy);
+    refresh.disabled = busy || !currentChatId();
+
     const st = getState();
     if (activeTab === 'settings') {
         syncSettings();
@@ -121,20 +140,22 @@ function renderAll() {
         pane.innerHTML = emptyHtml('Открой чат — у каждой истории свои отметки.');
         return;
     }
-    if (activeTab === 'overview') pane.innerHTML = overviewHtml(st);
-    else pane.innerHTML = emptyHtml(EMPTY_TEXT[activeTab]);
+    const html = { overview: overviewHtml, rels: relsHtml, skills: skillsHtml, flags: flagsHtml, ach: achHtml }[activeTab];
+    pane.innerHTML = html ? html(st) : emptyHtml('Астро появится позже.');
 }
-
-const EMPTY_TEXT = {
-    rels: 'Пока никого — судья запишет персонажей, когда посмотрит историю.',
-    skills: 'Навыков пока нет — появятся после первой оценки.',
-    flags: 'Пока ни одной метки. Открытых обещаний тоже нет — судья заметит, когда кто-то что-то пообещает.',
-    ach: 'Пока ни одной — судья следит.',
-    astro: 'Астро появится позже.',
-};
 
 function emptyHtml(text) {
     return `<div class="thr-empty">${escapeHtml(text)}</div>`;
+}
+
+function barCard(title, value, max, note) {
+    const width = Math.max(0, Math.min(100, (value / max) * 100));
+    return `
+        <div class="thr-card">
+            <div class="thr-card-head"><span>${escapeHtml(title)}</span><b>${value}<small> / ${max}</small></b></div>
+            <div class="thr-bar"><i style="width:${width}%"></i></div>
+            ${note ? `<div class="thr-note">${escapeHtml(note)}</div>` : ''}
+        </div>`;
 }
 
 function overviewHtml(st) {
@@ -143,14 +164,157 @@ function overviewHtml(st) {
     const progress = st.touched
         ? `оценено до сообщения ${st.count} из ${total}`
         : `сообщений в чате: ${total} · оценок ещё не было`;
+    const feed = st.log.filter((e) => e.count <= total).slice(-5).reverse();
     return `
-        <div class="thr-card">
-            <div class="thr-card-head"><span>Репутация</span><b>${rep}<small> / 100</small></b></div>
-            <div class="thr-bar"><i style="width:${rep}%"></i></div>
-            <div class="thr-note">${escapeHtml(repLevel(rep))}</div>
-        </div>
-        ${st.touched ? '' : '<div class="thr-hint">Судья ещё не смотрел эту историю. Скоро здесь появится кнопка ⟳ — он поставит первые отметки по последним сообщениям.</div>'}
+        ${busy ? '<div class="thr-hint">Судья листает страницы…</div>' : ''}
+        ${st.sdate?.text ? `<div class="thr-date"><i class="fa-regular fa-calendar"></i> ${escapeHtml(st.sdate.text)}</div>` : ''}
+        ${modeOf('rep') === 'on' ? barCard('Репутация', rep, 100, repLevel(rep)) : ''}
+        ${st.touched ? '' : '<div class="thr-hint">Судья ещё не смотрел эту историю. Нажми ⟳ в шапке — он поставит первые отметки по последним сообщениям. Для длинной истории сначала поставь в настройках глубину 80 и включи память судьи.</div>'}
+        ${feed.length ? `<div class="thr-sec">Последние события</div><div class="thr-feed">${feed.map(feedLineHtml).join('')}</div>` : ''}
         <div class="thr-note thr-progress">${escapeHtml(progress)}</div>`;
+}
+
+function feedLineHtml(e) {
+    const date = e.sd ? `<div class="thr-note">${escapeHtml(e.sd)}</div>` : '';
+    return `<div class="thr-feed-row">${markLineHtml(e)}${date}</div>`;
+}
+
+function relsHtml(st) {
+    const names = Object.keys(st.rels).sort((a, b) => relVal(st, b) - relVal(st, a));
+    if (!names.length) return emptyHtml('Пока никого — судья запишет персонажей, когда посмотрит историю.');
+    const cards = names.map((n) => {
+        const v = relVal(st, n);
+        return `
+            <div class="thr-card">
+                <div class="thr-card-head"><span>${escapeHtml(n)}</span><b class="${v > 0 ? 'thr-up' : v < 0 ? 'thr-down' : ''}">${signed(v)}</b></div>
+                <div class="thr-bar thr-bar-mid"><i style="${v >= 0 ? `left:50%;width:${v / 2}%` : `right:50%;width:${-v / 2}%`}"></i></div>
+                <div class="thr-note">${escapeHtml(relLevel(v))}</div>
+            </div>`;
+    }).join('');
+    const pairs = Object.values(st.pairs).filter(Boolean).sort((a, b) => Math.abs(b.v || 0) - Math.abs(a.v || 0));
+    const links = pairs.length ? `<div class="thr-sec">Связи между персонажами</div>${pairs.map((p) => {
+        const types = Object.keys(p.types || {}).map((t) => LINK_LABELS[t] || t).join(', ');
+        return `
+            <div class="thr-row">
+                <div><b>${escapeHtml(p.a)} — ${escapeHtml(p.b)}</b>${types ? ` <span class="thr-chip">${escapeHtml(types)}</span>` : ''}
+                    ${p.note ? `<div class="thr-note">${escapeHtml(p.note)}</div>` : ''}</div>
+                <b class="${p.v > 0 ? 'thr-up' : p.v < 0 ? 'thr-down' : ''}">${signed(p.v || 0)}</b>
+            </div>`;
+    }).join('')}` : '';
+    return cards + links;
+}
+
+function skillsHtml(st) {
+    const list = skillList(st);
+    if (!list.length) return emptyHtml('Навыков пока нет — появятся после первой оценки.');
+    return list.map((e) => barCard(e.name, skillVal(st, e.name.toLowerCase()), 100, '')).join('');
+}
+
+function flagsHtml(st) {
+    const flags = activeFlags(st);
+    const quests = openQuests(st);
+    const row = (name, note, sd) => `
+        <div class="thr-row"><div><b>${escapeHtml(name)}</b>${note ? `<div class="thr-note">${escapeHtml(note)}</div>` : ''}</div>
+        ${sd ? `<span class="thr-note">${escapeHtml(sd)}</span>` : ''}</div>`;
+    return `
+        <div class="thr-sec">Метки сюжета</div>
+        ${flags.length ? flags.map((x) => row(x.f.name || x.key, x.f.note, x.f.sd)).join('') : '<div class="thr-note">пока ни одной метки</div>'}
+        <div class="thr-sec">Обещания и цели</div>
+        ${quests.length ? quests.map((q) => row(q.name, q.note, q.sd)).join('') : '<div class="thr-note">открытых обещаний нет — судья заметит, когда кто-то что-то пообещает</div>'}`;
+}
+
+function achHtml(st) {
+    const order = { legendary: 0, rare: 1, common: 2 };
+    const list = Object.values(st.ach).filter(Boolean)
+        .sort((a, b) => (order[a.rarity] ?? 3) - (order[b.rarity] ?? 3) || (b.at || 0) - (a.at || 0));
+    if (!list.length) return emptyHtml('Пока ни одной — судья следит.');
+    return list.map((a) => `
+        <div class="thr-row"><div><b>${achIcon(a.rarity)} ${escapeHtml(achTitle(a))}</b> <span class="thr-chip">${RARITY_LABELS[a.rarity] || ''}</span>
+            ${a.note ? `<div class="thr-note">${escapeHtml(a.note)}</div>` : ''}</div>
+        ${a.sd ? `<span class="thr-note">${escapeHtml(a.sd)}</span>` : ''}</div>`).join('');
+}
+
+// ---------- Оценка ----------
+
+/** Судья читает свежий кусок истории и ставит отметки. */
+async function evaluate() {
+    if (busy) return;
+    const chatId = currentChatId();
+    if (!chatId) {
+        toastr.info('Открой чат — судье нечего читать', TOAST_TITLE);
+        return;
+    }
+    if (!judgeNeeded()) {
+        toastr.info('Все разделы выключены — судье нечего оценивать', TOAST_TITLE);
+        return;
+    }
+    const total = Array.isArray(ctx().chat) ? ctx().chat.length : 0;
+    if (!total) {
+        toastr.info('В чате пока нет сообщений', TOAST_TITLE);
+        return;
+    }
+
+    busy = true;
+    renderAll();
+    try {
+        const depth = getSettings().histDepth;
+        const st = getState();
+        ensureSkills(st);
+        const date = hearthtideDate(depth);
+        const cx = { bg: background(), memory: await loreMemory(), date };
+        const system = systemPrompt({ hasDate: Boolean(date) });
+        const user = userPrompt(st, cx, transcript(depth));
+        const anchor = anchorAt(total - 1); // что именно прочитал судья
+        lastJudge = { at: new Date(), chars: system.length + user.length, system, user, raw: '', error: '' };
+
+        const raw = await requestJudge({ system, user });
+        lastJudge.raw = raw;
+
+        // Пока судья думал, чат сменили или ответ перегенерировали — его выводы уже про другой текст
+        if (currentChatId() !== chatId) {
+            toastr.info('Чат сменился, пока судья думал — эта оценка не применена.', TOAST_TITLE);
+            return;
+        }
+        if (ctx().chat.length < total || !anchorHolds(anchor, total - 1)) {
+            toastr.info('Пока судья думал, ответ перегенерировали — эта оценка не применена.', TOAST_TITLE);
+            return;
+        }
+        if (!raw.trim()) throw new Error('Empty reply');
+        const rows = parse(raw);
+        if (!rows.length && !/\bNONE\b/i.test(raw)) throw new Error('No mark lines in the reply');
+
+        const now = getState();
+        const sd = date || parseDate(raw);
+        if (sd) now.sdate = { text: sd, at: Date.now() };
+        const env = { total, sd: now.sdate?.text || '', chars: characterNames(), persona: personaName() };
+        const applied = rows.filter((r) => applyRow(now, r, env));
+        now.count = total;
+        now.touched = true;
+        if (!now.firstAt) now.firstAt = Date.now();
+        await saveState();
+
+        showAch(applied.filter((r) => r.kind === 'ACH'));
+        showMarks(applied.filter((r) => r.kind !== 'ACH' && r.kind !== 'FACT'));
+        if (!applied.length) toastr.info('Судья молчит — за это время ничего не изменилось.', TOAST_TITLE);
+    } catch (error) {
+        const message = String(error?.message || error || 'Unknown error').slice(0, 300);
+        if (lastJudge) lastJudge.error = message;
+        console.error('[Thread] судья:', error);
+        toastr.error(`${explainError(message)}<br><small>${escapeHtml(message)}</small>`, 'Thread: отметки не поставлены', { escapeHtml: false, timeOut: 9000 });
+    } finally {
+        busy = false;
+        renderAll();
+    }
+}
+
+/** Пояснение по-русски; сам текст ошибки остаётся на английском — так его проще гуглить. */
+function explainError(message) {
+    if (/^Empty reply/.test(message)) return 'Модель вернула пустой ответ: сработал фильтр или думающей модели не хватило токенов.';
+    if (/^No mark lines/.test(message)) return 'Модель ответила не по форме — отметки собрать не из чего. Сырой ответ лежит в настройках, «Последний ответ судьи».';
+    if (/401|403|unauthori|api key/i.test(message)) return 'Провайдер не принял ключ профиля.';
+    if (/429|rate limit/i.test(message)) return 'Лимит запросов у провайдера. Подожди минуту и попробуй ещё раз.';
+    if (/timeout|timed out|5\d\d/i.test(message)) return 'Провайдер не ответил вовремя.';
+    return 'Запрос к модели не прошёл.';
 }
 
 // ---------- Настройки (вкладка с шестерёнкой) ----------
@@ -176,7 +340,9 @@ function settingsHtml() {
                         ${HIST_DEPTHS.map((n) => `<option value="${n}">${n}${n === 10 ? ' (по умолчанию)' : ''}</option>`).join('')}
                     </select>
                 </div>
-                <div class="thr-note">Больше сообщений — лучше контекст, но запрос дольше и дороже.</div>
+                <div class="thr-note">Сообщения, карточка и персона уходят судье целиком, без обрезки. Больше сообщений — лучше контекст, но запрос дольше и дороже.</div>
+                <label class="checkbox_label" for="thr_memchat"><input id="thr_memchat" type="checkbox" /> Память судьи: лорбук этого чата</label>
+                <div class="thr-note">Судья дочитывает лорбук, привязанный к чату (например, сводки MemoryBook), чтобы знать прошлое истории. Боту через Thread он не уходит.</div>
             </div>
 
             <div class="thr-set-group">
@@ -191,6 +357,18 @@ function settingsHtml() {
                     <input id="thr_repstart" class="text_pole thr-num" type="number" min="0" max="100" step="1" />
                 </div>
                 <div class="thr-note">Действует на истории, которые судья ещё не смотрел.</div>
+            </div>
+
+            <div class="thr-set-group">
+                <details class="thr-details">
+                    <summary>Последний ответ судьи</summary>
+                    <div class="thr-note" id="thr_last_meta"></div>
+                    <pre class="thr-pre" id="thr_last_raw"></pre>
+                    <details class="thr-details">
+                        <summary>Что ушло судье</summary>
+                        <pre class="thr-pre" id="thr_last_prompt"></pre>
+                    </details>
+                </details>
             </div>
 
             <div class="thr-set-group">
@@ -222,6 +400,7 @@ function bindSettings() {
     bindCheck('thr_auto', 'auto');
     bindCheck('thr_influence', 'influence');
     bindCheck('thr_toasts', 'toasts');
+    bindCheck('thr_memchat', 'memChat');
 
     $('thr_every').addEventListener('change', (e) => {
         getSettings().everyN = clampInt(e.target.value, 2, 50, 3);
@@ -250,7 +429,19 @@ function syncSettings() {
     $('thr_every').value = s.everyN;
     $('thr_depth').value = String(s.histDepth);
     $('thr_repstart').value = s.repStart;
+    $('thr_memchat').checked = Boolean(s.memChat);
     $('thr_reset').disabled = !currentChatId();
+
+    if (!lastJudge) {
+        $('thr_last_meta').textContent = 'С момента загрузки страницы судья ещё не запускался.';
+        $('thr_last_raw').textContent = '';
+        $('thr_last_prompt').textContent = '';
+    } else {
+        const time = lastJudge.at.toLocaleTimeString('ru-RU');
+        $('thr_last_meta').textContent = `${time} · запрос: ${lastJudge.chars.toLocaleString('ru-RU')} знаков${lastJudge.error ? ` · ошибка: ${lastJudge.error}` : ''}`;
+        $('thr_last_raw').textContent = lastJudge.raw || '(пусто)';
+        $('thr_last_prompt').textContent = `${lastJudge.system}\n\n────────\n\n${lastJudge.user}`;
+    }
 }
 
 function disarmReset() {
@@ -273,6 +464,7 @@ async function onResetClick(e) {
     getState();
     await saveState();
     toastr.info('Отметки этого чата стёрты', TOAST_TITLE);
+    renderAll();
 }
 
 // ---------- Встраивание в таверну ----------
@@ -319,7 +511,7 @@ function onChatChanged() {
 }
 
 function onMessagesChanged() {
-    if (isOpen() && activeTab === 'overview') renderAll();
+    if (isOpen() && activeTab === 'overview' && !busy) renderAll();
 }
 
 jQuery(async () => {

@@ -26,6 +26,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
     influence: true,     // записка боту
     toasts: true,        // сноски поверх чата
     repStart: 50,        // с чего начинается репутация
+    memChat: false,      // память судьи: лорбук, привязанный к чату
     modes: DEFAULT_MODES,
 });
 
@@ -58,6 +59,11 @@ export function saveSettings() {
 
 export function modeOf(section) {
     return getSettings().modes[section] || 'on';
+}
+
+/** Раздел собирается (режимы «вкл» и «скрыть»). */
+export function modOn(section) {
+    return modeOf(section) !== 'off';
 }
 
 // ---------- Помощники ----------

@@ -246,3 +246,193 @@
 #thread_settings .thr-note {
     margin-top: 6px;
 }
+
+/* Кнопки таверны по умолчанию сжимаются до самого длинного слова — растягиваем по тексту */
+
+.thr-window .menu_button,
+#thread_settings .menu_button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    width: fit-content;
+    white-space: nowrap;
+}
+
+/* ⟳ в шапке */
+
+.thr-icon-btn:disabled {
+    cursor: default;
+    opacity: 0.35;
+}
+
+.thr-refresh.thr-spin i {
+    animation: thr-spin 1s linear infinite;
+}
+
+@keyframes thr-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Обзор и списки */
+
+.thr-date {
+    font-size: 0.9em;
+    opacity: 0.8;
+}
+
+.thr-sec {
+    margin-top: 6px;
+    font-size: 0.8em;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.6;
+}
+
+.thr-feed {
+    display: flex;
+    flex-direction: column;
+}
+
+.thr-feed-row,
+.thr-row {
+    padding: 8px 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor) 60%, transparent);
+}
+
+.thr-feed-row:last-child,
+.thr-row:last-child {
+    border-bottom: none;
+}
+
+.thr-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.thr-chip {
+    padding: 1px 8px;
+    font-size: 0.78em;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 999px;
+    opacity: 0.8;
+}
+
+.thr-up {
+    color: #6fbf8b;
+}
+
+.thr-down {
+    color: #d9778b;
+}
+
+/* Шкала отношений: ноль посередине */
+
+.thr-bar-mid {
+    position: relative;
+}
+
+.thr-bar-mid i {
+    position: absolute;
+    top: 0;
+}
+
+/* Строка отметки — общая для ленты и сносок */
+
+.thr-mline {
+    display: flex;
+    gap: 8px;
+    line-height: 1.35;
+}
+
+.thr-mico {
+    flex: none;
+    width: 1.4em;
+    text-align: center;
+}
+
+.thr-mnote {
+    opacity: 0.7;
+}
+
+/* Сноски поверх чата */
+
+#thr-toasts {
+    position: fixed;
+    top: 54px;
+    left: 50%;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: min(440px, calc(100vw - 24px));
+    transform: translateX(-50%);
+    pointer-events: none;
+}
+
+.thr-banner {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 14px;
+    color: var(--SmartThemeBodyColor);
+    font-size: 0.92em;
+    background: var(--SmartThemeBlurTintColor);
+    backdrop-filter: blur(var(--SmartThemeBlurStrength, 10px));
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 12px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+    cursor: pointer;
+    pointer-events: auto;
+    animation: thr-in 0.3s ease;
+    transition: opacity 0.3s, transform 0.3s;
+}
+
+.thr-banner.thr-out {
+    opacity: 0;
+    transform: translateY(-8px);
+}
+
+.thr-banner.thr-ach {
+    border-color: var(--SmartThemeQuoteColor);
+}
+
+.thr-btitle {
+    font-size: 0.78em;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.6;
+}
+
+@keyframes thr-in {
+    from { opacity: 0; transform: translateY(-8px); }
+}
+
+/* «Последний ответ судьи» */
+
+.thr-details summary {
+    cursor: pointer;
+}
+
+.thr-details .thr-details {
+    margin-top: 6px;
+}
+
+.thr-pre {
+    max-height: 220px;
+    margin: 6px 0 0;
+    padding: 8px 10px;
+    overflow: auto;
+    font-size: 0.82em;
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 8px;
+}
+
+.thr-pre:empty {
+    display: none;
+}
