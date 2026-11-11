@@ -25,6 +25,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
     histDepth: 10,       // сколько последних сообщений читает судья: 10 | 20 | 40 | 80
     influence: true,     // записка боту
     toasts: true,        // сноски поверх чата
+    toastMode: 'click',  // когда сноска уходит: 'click' | '5' | '15' (секунды)
     repStart: 50,        // с чего начинается репутация
     memChat: false,      // память судьи: лорбук, привязанный к чату
     modes: DEFAULT_MODES,
@@ -109,6 +110,7 @@ function emptyState() {
         genre: '',
         astro: {},
         snaps: [],        // снимки для отката
+        redo: [],         // отменённые оценки — вдруг их вариант ответа вернётся
         rerollWait: null, // после отката ждём нового сообщения, а не оцениваем каждый свайп
     };
 }

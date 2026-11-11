@@ -3,6 +3,7 @@
 // Этап 1: фундамент — окно с вкладками, настройки, у каждого чата свои данные.
 // Этап 2: судья руками — кнопка ⟳, сбор контекста, разбор ответа, сноски, «последний ответ судьи».
 // Этап 3: судья следит сам (раз в N сообщений) и откатывает отметки при свайпах, перегенерации и удалении.
+//   Правки: сноски в своём стиле, «память вариантов» ответа при свайпах туда-обратно.
 
 import {
     ctx, getSettings, saveSettings, escapeHtml, clampInt, currentChatId,
@@ -16,8 +17,8 @@ import {
     background, transcript, hearthtideDate, loreMemory, anchorAt, anchorHolds, characterNames, personaName,
 } from './context.js';
 import { requestJudge } from './connection.js';
-import { snapTake, rollbackCheck } from './state.js';
-import { showMarks, showAch, markLineHtml } from './toasts.js';
+import { snapTake, rollbackCheck, redoCheck } from './state.js';
+import { showMarks, showAch, showNote, markLineHtml } from './toasts.js';
 import { achIcon, RARITY_LABELS } from './ach.js';
 
 const TABS = [
@@ -249,16 +250,16 @@ async function evaluate({ quiet = false } = {}) {
     if (busy) return;
     const chatId = currentChatId();
     if (!chatId) {
-        if (!quiet) toastr.info('Открой чат — судье нечего читать', TOAST_TITLE);
+        if (!quiet) showNote('Открой чат — судье нечего читать', { force: true });
         return;
     }
     if (!judgeNeeded()) {
-        if (!quiet) toastr.info('Все разделы выключены — судье нечего оценивать', TOAST_TITLE);
+        if (!quiet) showNote('Все разделы выключены — судье нечего оценивать', { force: true });
         return;
     }
     const total = Array.isArray(ctx().chat) ? ctx().chat.length : 0;
     if (!total) {
-        if (!quiet) toastr.info('В чате пока нет сообщений', TOAST_TITLE);
+        if (!quiet) showNote('В чате пока нет сообщений', { force: true });
         return;
     }
 
@@ -273,18 +274,20 @@ async function evaluate({ quiet = false } = {}) {
         const system = systemPrompt({ hasDate: Boolean(date) });
         const user = userPrompt(st, cx, transcript(depth));
         const anchor = anchorAt(total - 1); // что именно прочитал судья
-        lastJudge = { at: new Date(), chars: system.length + user.length, system, user, raw: '', error: '' };
+        lastJudge = { at: new Date(), mode: quiet ? 'авто' : 'вручную', chars: system.length + user.length, system, user, raw: '', error: '', result: '' };
 
         const raw = await requestJudge({ system, user });
         lastJudge.raw = raw;
 
         // Пока судья думал, чат сменили или ответ перегенерировали — его выводы уже про другой текст
         if (currentChatId() !== chatId) {
-            toastr.info('Чат сменился, пока судья думал — эта оценка не применена.', TOAST_TITLE);
+            lastJudge.result = 'не применено: чат сменился';
+            showNote('Чат сменился, пока судья думал — эта оценка не применена.');
             return;
         }
         if (ctx().chat.length < total || !anchorHolds(anchor, total - 1)) {
-            toastr.info('Пока судья думал, ответ перегенерировали — эта оценка не применена.', TOAST_TITLE);
+            lastJudge.result = 'не применено: ответ перегенерировали';
+            showNote('Пока судья думал, ответ перегенерировали — эта оценка не применена.');
             return;
         }
         if (!raw.trim()) throw new Error('Empty reply');
@@ -304,9 +307,10 @@ async function evaluate({ quiet = false } = {}) {
         if (!now.firstAt) now.firstAt = Date.now();
         await saveState();
 
-        showAch(applied.filter((r) => r.kind === 'ACH'));
-        showMarks(applied.filter((r) => r.kind !== 'ACH' && r.kind !== 'FACT'));
-        if (!applied.length && !quiet) toastr.info('Судья молчит — за это время ничего не изменилось.', TOAST_TITLE);
+        const achShown = showAch(applied.filter((r) => r.kind === 'ACH'));
+        const marksShown = showMarks(applied.filter((r) => r.kind !== 'ACH' && r.kind !== 'FACT'));
+        if (!applied.length && !quiet) showNote('Судья молчит — за это время ничего не изменилось.');
+        lastJudge.result = `применено: ${applied.length}${applied.length ? (achShown || marksShown ? ' · сноска показана' : ' · сноска не показана (сноски выключены или это только досье)') : ''}`;
     } catch (error) {
         const message = String(error?.message || error || 'Unknown error').slice(0, 300);
         if (lastJudge) lastJudge.error = message;
@@ -331,15 +335,15 @@ async function syncWithChat() {
     const st = getState();
     if (!st) return 0;
     const { undone, why } = rollbackCheck(st);
-    if (!undone) return 0;
+    const redone = redoCheck(st); // вернулся прежний вариант ответа — возвращаем и его отметки
+    if (!undone && !redone) return 0;
     await saveState();
-    if (getSettings().toasts) {
-        toastr.info(why === 'del'
-            ? 'Сообщения удалены — отметки вернулись к тому, что было до них'
-            : 'Ответ перегенерирован — отметки старой версии отменены', TOAST_TITLE);
-    }
+    if (redone) showNote('Вернулся прежний вариант ответа — его отметки тоже');
+    else showNote(why === 'del'
+        ? 'Сообщения удалены — отметки вернулись к тому, что было до них'
+        : 'Ответ перегенерирован — отметки старой версии отменены');
     if (isOpen()) renderAll();
-    return undone;
+    return undone + redone;
 }
 
 /** Последним в чате ответил бот (не посреди хода игрока). */
@@ -419,6 +423,14 @@ function settingsHtml() {
                 <label class="checkbox_label" for="thr_influence"><input id="thr_influence" type="checkbox" /> Метки влияют на сюжет</label>
                 <div class="thr-note">Бот получает короткую скрытую записку об отношениях, репутации и метках и показывает это поведением.</div>
                 <label class="checkbox_label" for="thr_toasts"><input id="thr_toasts" type="checkbox" /> Показывать сноски поверх чата</label>
+                <div class="thr-set-row">
+                    <label class="thr-label" for="thr_toastmode">Сноска уходит</label>
+                    <select id="thr_toastmode" class="text_pole thr-num">
+                        <option value="click">по клику</option>
+                        <option value="5">через 5 сек</option>
+                        <option value="15">через 15 сек</option>
+                    </select>
+                </div>
             </div>
 
             <div class="thr-set-group">
@@ -471,6 +483,10 @@ function bindSettings() {
     bindCheck('thr_influence', 'influence');
     bindCheck('thr_toasts', 'toasts');
     bindCheck('thr_memchat', 'memChat');
+    $('thr_toastmode').addEventListener('change', (e) => {
+        getSettings().toastMode = ['click', '5', '15'].includes(e.target.value) ? e.target.value : 'click';
+        saveSettings();
+    });
 
     $('thr_every').addEventListener('change', (e) => {
         getSettings().everyN = clampInt(e.target.value, 2, 50, 3);
@@ -496,6 +512,7 @@ function syncSettings() {
     $('thr_auto').checked = Boolean(s.auto);
     $('thr_influence').checked = Boolean(s.influence);
     $('thr_toasts').checked = Boolean(s.toasts);
+    $('thr_toastmode').value = s.toastMode;
     $('thr_every').value = s.everyN;
     $('thr_depth').value = String(s.histDepth);
     $('thr_repstart').value = s.repStart;
@@ -508,7 +525,8 @@ function syncSettings() {
         $('thr_last_prompt').textContent = '';
     } else {
         const time = lastJudge.at.toLocaleTimeString('ru-RU');
-        $('thr_last_meta').textContent = `${time} · запрос: ${lastJudge.chars.toLocaleString('ru-RU')} знаков${lastJudge.error ? ` · ошибка: ${lastJudge.error}` : ''}`;
+        const outcome = lastJudge.error ? `ошибка: ${lastJudge.error}` : (lastJudge.result || 'судья ещё думает…');
+        $('thr_last_meta').textContent = `${time} · ${lastJudge.mode} · запрос: ${lastJudge.chars.toLocaleString('ru-RU')} знаков · ${outcome}`;
         $('thr_last_raw').textContent = lastJudge.raw || '(пусто)';
         $('thr_last_prompt').textContent = `${lastJudge.system}\n\n────────\n\n${lastJudge.user}`;
     }
@@ -533,7 +551,7 @@ async function onResetClick(e) {
     delete ctx().chatMetadata[META_KEY];
     getState();
     await saveState();
-    toastr.info('Отметки этого чата стёрты', TOAST_TITLE);
+    showNote('Отметки этого чата стёрты', { force: true });
     renderAll();
 }
 
@@ -547,14 +565,17 @@ function addSettingsDrawer() {
     wrap.innerHTML = `
         <div class="inline-drawer">
             <div class="inline-drawer-toggle inline-drawer-header">
-                <b>「 THREAD 」</b>
+                <b><i class="fa-solid fa-diagram-project" style="margin-right: 6px;"></i>「 THREAD 」</b>
                 <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
             </div>
             <div class="inline-drawer-content">
-                <button id="thr_open_panel" class="menu_button" type="button">
-                    <i class="fa-solid fa-diagram-project"></i> <span>Открыть Thread</span>
-                </button>
-                <div class="thr-note">Все настройки — в окне, на вкладке с шестерёнкой.</div>
+                <div class="thr-drawer">
+                    <div class="thr-note">Судья сюжета: отношения, навыки, репутация, метки и обещания. Настройки — под шестерёнкой в окне.</div>
+                    <button id="thr_open_panel" class="menu_button thr-open-btn" type="button">
+                        <i class="fa-solid fa-diagram-project"></i>
+                        <span>Открыть Thread</span>
+                    </button>
+                </div>
             </div>
         </div>`;
     host.appendChild(wrap);
@@ -600,8 +621,12 @@ jQuery(async () => {
     const { eventSource, event_types } = ctx();
     eventSource.on(event_types.CHAT_CHANGED, onChatChanged);
     if (event_types.MESSAGE_SENT) eventSource.on(event_types.MESSAGE_SENT, onMessagesChanged);
-    for (const key of ['MESSAGE_DELETED', 'MESSAGE_SWIPED']) {
+    for (const key of ['MESSAGE_DELETED', 'MESSAGE_SWIPED', 'MESSAGE_SWIPE_DELETED']) {
         if (event_types[key]) eventSource.on(event_types[key], onRolledBackMaybe);
+    }
+    // Отменили генерацию свайпа — таверна возвращает прежний вариант не сразу, сверяемся чуть позже
+    if (event_types.GENERATION_STOPPED) {
+        eventSource.on(event_types.GENERATION_STOPPED, () => setTimeout(onRolledBackMaybe, 400));
     }
     if (event_types.MESSAGE_RECEIVED) {
         eventSource.on(event_types.MESSAGE_RECEIVED, () => {

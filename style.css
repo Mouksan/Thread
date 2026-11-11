@@ -243,14 +243,10 @@
     align-self: flex-start;
 }
 
-#thread_settings .thr-note {
-    margin-top: 6px;
-}
 
-/* Кнопки таверны по умолчанию сжимаются до самого длинного слова — растягиваем по тексту */
+/* Кнопки таверны в окне по умолчанию сжимаются до самого длинного слова — растягиваем по тексту */
 
-.thr-window .menu_button,
-#thread_settings .menu_button {
+.thr-window .menu_button {
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -357,58 +353,201 @@
     opacity: 0.7;
 }
 
-/* Сноски поверх чата */
+/* Сноски: отметки — стопкой в правом верхнем углу (как у Lifeweaver) */
 
 #thr-toasts {
     position: fixed;
-    top: 54px;
-    left: 50%;
-    z-index: 10000;
+    top: 16px;
+    right: 16px;
+    z-index: 10001;
     display: flex;
     flex-direction: column;
     gap: 8px;
-    width: min(440px, calc(100vw - 24px));
-    transform: translateX(-50%);
     pointer-events: none;
 }
 
-.thr-banner {
+.thr-toast {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: 4px;
-    padding: 10px 14px;
+    max-width: 340px;
+    padding: 10px 28px 10px 14px;
     color: var(--SmartThemeBodyColor);
-    font-size: 0.92em;
-    background: var(--SmartThemeBlurTintColor);
-    backdrop-filter: blur(var(--SmartThemeBlurStrength, 10px));
-    border: 1px solid var(--SmartThemeBorderColor);
-    border-radius: 12px;
-    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+    font-size: 0.85rem;
+    background: color-mix(in srgb, var(--SmartThemeBlurTintColor) 88%, transparent);
+    backdrop-filter: blur(var(--SmartThemeBlurStrength, 12px));
+    -webkit-backdrop-filter: blur(var(--SmartThemeBlurStrength, 12px));
+    border: 1px solid color-mix(in srgb, var(--SmartThemeBodyColor) 22%, transparent);
+    border-left: 3px solid var(--SmartThemeQuoteColor);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
     cursor: pointer;
     pointer-events: auto;
-    animation: thr-in 0.3s ease;
-    transition: opacity 0.3s, transform 0.3s;
-}
-
-.thr-banner.thr-out {
     opacity: 0;
-    transform: translateY(-8px);
+    transform: translateX(16px);
+    transition: opacity 0.25s ease, transform 0.25s ease;
 }
 
-.thr-banner.thr-ach {
-    border-color: var(--SmartThemeQuoteColor);
+.thr-toast.thr-in {
+    opacity: 1;
+    transform: none;
 }
 
-.thr-btitle {
-    font-size: 0.78em;
+.thr-toast-up { border-left-color: #5aa86a; }
+.thr-toast-down { border-left-color: #c25a6a; }
+.thr-toast-mixed { border-left-color: var(--SmartThemeQuoteColor); }
+.thr-toast-info { border-left-color: #5a8fc2; }
+
+.thr-toast-close {
+    position: absolute;
+    top: 7px;
+    right: 9px;
+    font-size: 0.75rem;
+    opacity: 0.45;
+    transition: opacity 0.15s ease;
+}
+
+.thr-toast:hover .thr-toast-close {
+    opacity: 1;
+}
+
+.thr-toast-title {
+    font-size: 0.72rem;
     font-weight: 700;
     letter-spacing: 0.06em;
     text-transform: uppercase;
     opacity: 0.6;
 }
 
-@keyframes thr-in {
-    from { opacity: 0; transform: translateY(-8px); }
+.thr-toast-title i {
+    margin-right: 4px;
+    color: var(--SmartThemeQuoteColor);
+}
+
+.thr-toast-more {
+    font-size: 0.8em;
+    opacity: 0.6;
+}
+
+/* Сноски: ачивки — сверху по центру, с отскоком и цветом редкости (как у Hearthtide) */
+
+#thr-ach-toasts {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10002;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 10px 0;
+    pointer-events: none;
+}
+
+.thr-ach-card {
+    --thr-rar: #9fb3c8;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    max-width: min(92vw, 400px);
+    padding: 12px 18px 12px 14px;
+    color: var(--SmartThemeBodyColor);
+    background: var(--SmartThemeBlurTintColor, rgba(20, 16, 18, 0.92));
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid color-mix(in srgb, var(--thr-rar) 70%, transparent);
+    border-radius: 14px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4), 0 0 0 4px color-mix(in srgb, var(--thr-rar) 14%, transparent);
+    cursor: pointer;
+    pointer-events: auto;
+    transform: translateY(-140%);
+}
+
+.thr-ach-card.thr-in {
+    animation: thr-ach-in 0.45s cubic-bezier(0.2, 1.3, 0.4, 1) both;
+}
+
+.thr-ach-card.thr-out {
+    animation: thr-ach-out 0.3s ease-in both;
+}
+
+.thr-rar-rare { --thr-rar: #c9a659; }
+.thr-rar-legendary { --thr-rar: #d9779b; }
+
+.thr-rar-legendary {
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4), 0 0 0 4px color-mix(in srgb, var(--thr-rar) 18%, transparent), 0 0 26px color-mix(in srgb, var(--thr-rar) 35%, transparent);
+}
+
+.thr-ach-icon {
+    flex: none;
+    font-size: 1.9em;
+    animation: thr-ach-bob 1.4s ease-in-out infinite;
+}
+
+.thr-ach-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+    line-height: 1.3;
+}
+
+.thr-ach-text > em {
+    font-size: 0.74em;
+    font-style: normal;
+    color: var(--thr-rar);
+}
+
+.thr-ach-text > b {
+    font-size: 1.05em;
+}
+
+.thr-ach-text > span {
+    font-size: 0.86em;
+    opacity: 0.8;
+    overflow-wrap: anywhere;
+}
+
+@keyframes thr-ach-in {
+    from { transform: translateY(-120%) scale(0.92); }
+    to { transform: none; }
+}
+
+@keyframes thr-ach-out {
+    from { transform: none; }
+    to { transform: translateY(-140%); }
+}
+
+@keyframes thr-ach-bob {
+    50% { transform: translateY(-3px) scale(1.1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .thr-toast { transition: none; }
+    .thr-ach-card.thr-in, .thr-ach-card.thr-out, .thr-ach-icon { animation: none; }
+    .thr-ach-card.thr-in { transform: none; }
+}
+
+/* Ящик в списке расширений и кнопка «Открыть Thread» — как у Junket */
+
+.thr-drawer {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.thr-drawer .thr-open-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    margin: 0 0 10px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-weight: 600;
 }
 
 /* «Последний ответ судьи» */
