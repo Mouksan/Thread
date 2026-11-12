@@ -4,9 +4,11 @@
 
 import { ctx, getSettings, getState, saveStateDebounced, modOn, repNow } from './store.js';
 import { skillList, skillVal, relVal, signed, activeFlags, openQuests } from './judge.js';
+import { astroItems, astroState, FREQ } from './astro.js';
 
 const NOTE_KEY = 'thread_note';
 const CHECK_KEY = 'thread_check';
+const ASTRO_KEY = 'thread_astro';
 const IN_CHAT = 1;          // extension_prompt_types.IN_CHAT
 const ROLE_SYSTEM = 0;      // extension_prompt_roles.SYSTEM
 const NOTE_DEPTH = 1;       // перед последним сообщением игрока
@@ -79,6 +81,7 @@ function setPrompt(key, text, depth) {
 export function clearPrompts() {
     setPrompt(NOTE_KEY, '', NOTE_DEPTH);
     setPrompt(CHECK_KEY, '', CHECK_DEPTH);
+    setPrompt(ASTRO_KEY, '', NOTE_DEPTH);
 }
 
 /** Для «Последнего ответа судьи»: что ушло боту в последний раз. */
@@ -133,7 +136,25 @@ export async function interceptor(chat, contextSize, abort, type) {
         }
         setPrompt(CHECK_KEY, checkNote, CHECK_DEPTH);
 
-        lastInjected = { at: new Date(), type, note, check: checkNote };
+        // --- астро: одна подсказка раз в N ответов, по кругу; свайп того же ответа получает ту же ---
+        let astro = '';
+        const items = getSettings().influence ? astroItems(st) : [];
+        if (items.length) {
+            if (inj.astroFor === target) astro = inj.astroLast || '';
+            else {
+                inj.astroCnt = (inj.astroCnt || 0) + 1;
+                const every = FREQ[astroState(st).fx.freq] || 6;
+                if (inj.astroCnt % every === 0) {
+                    astro = items[(inj.astroIdx || 0) % items.length];
+                    inj.astroIdx = (inj.astroIdx || 0) + 1;
+                    inj.astroFor = target;
+                    inj.astroLast = astro;
+                }
+            }
+        }
+        setPrompt(ASTRO_KEY, astro, NOTE_DEPTH);
+
+        lastInjected = { at: new Date(), type, note, check: checkNote, astro };
         saveStateDebounced();
     } catch (error) {
         console.error('[Thread] перехватчик генерации:', error);

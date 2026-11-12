@@ -10,6 +10,7 @@
 // Этап 6: скан всей истории пачками (scan.js).
 // Этап 7: жанры и набор навыков (genres.js), режимы разделов вкл / скрыть / выкл.
 // Этап 8: Lifeweaver только на чтение (lifeweaver.js) и мост window.Thread для других расширений (bridge.js).
+// Этап 9: астро (astro.js, astro-tab.js) — выключено по умолчанию.
 
 import {
     ctx, getSettings, saveSettings, escapeHtml, clampInt, currentChatId,
@@ -19,7 +20,7 @@ import {
     judgeNeeded, systemPrompt, userPrompt, parse, parseDate, applyRow,
 } from './judge.js';
 import {
-    background, transcript, hearthtideDate, loreMemory, anchorAt, anchorHolds, characterNames, personaName,
+    background, transcript, hearthtideDate, hearthtideIso, loreMemory, anchorAt, anchorHolds, characterNames, personaName,
 } from './context.js';
 import { requestJudge } from './connection.js';
 import { snapTake, rollbackCheck, redoCheck } from './state.js';
@@ -39,6 +40,7 @@ import {
 } from './genres.js';
 import { lifeweaverFacts, lifeweaverRule, lifeweaverInstalled } from './lifeweaver.js';
 import { installBridge, reportLines } from './bridge.js';
+import { astroHtml, handleAstroAction, handleAstroInput, astroUi } from './astro-tab.js';
 
 // Перехватчик генерации — имя прописано в manifest.json (generate_interceptor)
 globalThis.threadInterceptor = interceptor;
@@ -98,6 +100,9 @@ function buildWindow() {
     body.addEventListener('keydown', onBodyKey);
     body.addEventListener('focusout', onBodyBlur);
     body.addEventListener('thr-rerender', () => renderAll());
+    body.addEventListener('change', async (e) => {
+        if (await handleAstroInput(e.target)) renderAll();
+    });
     overlay.querySelector('.thr-tabs').addEventListener('click', (e) => {
         const btn = e.target.closest('.thr-tab');
         if (btn) switchTab(btn.dataset.tab);
@@ -130,7 +135,7 @@ async function onBodyClick(e) {
     }
     const st = getState();
     if (!st) return;
-    const result = handleTabAction(st, btn);
+    const result = btn.dataset.act?.startsWith('az') ? handleAstroAction(st, btn, overlayEl, () => renderAll()) : handleTabAction(st, btn);
     if (result === 'render') {
         renderAll();
         const input = overlayEl.querySelector('.thr-ch-input, .thr-name-input');
@@ -342,7 +347,7 @@ function renderAll() {
         return;
     }
     const html = { overview: (x) => overviewHtml(x, busy), rels: relsHtml, skills: skillsHtml, flags: flagsHtml, ach: achHtml }[activeTab];
-    pane.innerHTML = html ? html(st) : emptyHtml('Астро появится позже.');
+    pane.innerHTML = html ? html(st) : astroHtml(st);
 }
 
 function emptyHtml(text) {
@@ -409,7 +414,7 @@ async function evaluate({ quiet = false } = {}) {
         const sd = date || parseDate(raw);
         const evId = `E${Date.now().toString(36)}`;
         snapTake(now, now.count, total, evId); // снимок «до» — на случай свайпа или удаления
-        if (sd) now.sdate = { text: sd, at: Date.now() };
+        if (sd) now.sdate = { text: sd, iso: date ? hearthtideIso(depth) : '', at: Date.now() };
         const env = { total, sd: now.sdate?.text || '', chars: characterNames(), persona: personaName(), ev: evId };
         const applied = rows.filter((r) => applyRow(now, r, env));
         now.rerollWait = null;
@@ -751,6 +756,7 @@ const SECTIONS = [
     ['rep', 'Репутация', 'Положение в мире истории'],
     ['flags', 'Метки и обещания', 'Статусы, клятвы, долги и обещания'],
     ['ach', 'Ачивки', 'Коллекция памятных моментов'],
+    ['astro', 'Астро', 'Знаки, MBTI, луна, карта и число дня, ретроградный Меркурий — по игровой дате'],
 ];
 const MODE_LABELS = { on: 'вкл', hide: 'скрыть', off: 'выкл' };
 
@@ -850,6 +856,7 @@ function onChatChanged() {
     closeDice();
     skillUi.list = null;
     skillUi.error = '';
+    Object.assign(astroUi, { sel: null, form: false, busy: '', err: '', info: '' });
     clearPrompts(); // записка прошлого чата не должна уйти в новый
     refreshDiceButton();
     // Ветка от середины чата приносит отметки «из будущего» — возвращаем их к точке ветвления

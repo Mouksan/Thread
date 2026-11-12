@@ -1256,3 +1256,119 @@ span.thr-ava {
     font-size: 0.85em;
     opacity: 1;
 }
+
+/* ---------- Этап 9: астро ---------- */
+
+.thr-astro-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 10px;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    background: rgba(127, 127, 127, 0.06);
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 10px;
+    cursor: pointer;
+}
+
+.thr-astro-row:hover {
+    border-color: var(--SmartThemeQuoteColor);
+}
+
+.thr-astro-row-main {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.thr-astro-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.thr-ava.thr-ava-lg {
+    width: 64px;
+    height: 64px;
+    font-size: 1.4em;
+}
+
+.thr-astro-name {
+    font-size: 1.1em;
+}
+
+.thr-astro-sec {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+    font-size: 0.78em;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.6;
+}
+
+.thr-astro-text {
+    line-height: 1.5;
+    text-align: justify;
+}
+
+.thr-x.thr-info {
+    width: 20px;
+    height: 20px;
+    font-size: 0.85em;
+    font-weight: 700;
+    text-transform: none;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 50%;
+    opacity: 0.7;
+}
+
+.thr-astro-info {
+    padding: 6px 10px;
+    border-left: 2px solid var(--SmartThemeQuoteColor);
+}
+
+.thr-chip.thr-rx {
+    color: #d9778b;
+    border-color: #d9778b;
+}
+
+.thr-astro-form {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.thr-astro-form .text_pole {
+    margin: 0;
+}
+
+.thr-astro-fx {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.thr-astro-fx[open] > *:not(summary) {
+    margin-top: 6px;
+}
+
+.thr-astro-boxes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px 12px;
+}
+
+.thr-pane .menu_button.thr-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    width: fit-content;
+    margin: 0;
+}

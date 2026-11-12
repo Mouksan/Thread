@@ -121,6 +121,19 @@ export function transcript(depth) {
 }
 
 /** Игровая дата из последнего тега Hearthtide в прочитанных сообщениях ('' — тегов нет). */
+/** Точная дата (ГГГГ-ММ-ДД) из последнего тега Hearthtide — для астро ('' — нет). */
+export function hearthtideIso(depth, range = null) {
+    const list = range ? rangeMessages(range[0], range[1]) : visibleTail(depth);
+    for (let i = list.length - 1; i >= 0; i--) {
+        const tags = [...list[i].raw.matchAll(HT_TAG)];
+        for (let j = tags.length - 1; j >= 0; j--) {
+            const iso = htFields(tags[j][1]).date;
+            if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(iso || '')) return iso;
+        }
+    }
+    return '';
+}
+
 export function hearthtideDate(depth) {
     const tail = visibleTail(depth);
     for (let i = tail.length - 1; i >= 0; i--) {

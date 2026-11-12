@@ -8,7 +8,7 @@ import { ctx, getSettings, getState, saveState, currentChatId, emptyState, clamp
 import { systemPrompt, userPrompt, parse, parseDate, applyRow, SCAN_LIMITS } from './judge.js';
 import { reconcileSkills, genrePromptLines } from './genres.js';
 import { lifeweaverRule } from './lifeweaver.js';
-import { background, transcriptRange, hearthtideDateRange, characterNames, personaName } from './context.js';
+import { background, transcriptRange, hearthtideDateRange, hearthtideIso, characterNames, personaName } from './context.js';
 import { requestJudge } from './connection.js';
 import { snapTake } from './state.js';
 import { checkMilestones } from './milestones.js';
@@ -59,7 +59,7 @@ export async function startScan() {
     const { scanBackup: _old, scan: _oldScan, ...rest } = st;
     const backup = structuredClone(rest);
     const avatars = structuredClone(st.avatars || {});
-    const keep = { genre: st.genre || '', skillsOff: structuredClone(st.skillsOff || []) };
+    const keep = { genre: st.genre || '', skillsOff: structuredClone(st.skillsOff || []), astro: structuredClone(st.astro || {}) };
     for (const key of Object.keys(st)) delete st[key];
     Object.assign(st, emptyState(), keep, { avatars, scanBackup: backup });
     st.chapters = [{ start: 0, title: '' }];
@@ -150,7 +150,7 @@ async function runScan() {
             const sd = date || parseDate(raw);
             const evId = `S${Date.now().toString(36)}`;
             snapTake(now, now.count, to, evId);
-            if (sd) now.sdate = { text: sd, at: Date.now() };
+            if (sd) now.sdate = { text: sd, iso: date ? hearthtideIso(0, [from, to]) : '', at: Date.now() };
             const env = { total: to, sd: now.sdate?.text || '', chars: characterNames(), persona: personaName(), ev: evId };
             const applied = rows.filter((r) => applyRow(now, r, env));
             now.count = to;
