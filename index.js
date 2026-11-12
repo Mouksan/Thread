@@ -41,6 +41,7 @@ import {
 import { lifeweaverFacts, lifeweaverRule, lifeweaverInstalled } from './lifeweaver.js';
 import { installBridge, reportLines } from './bridge.js';
 import { astroHtml, handleAstroAction, handleAstroInput, astroUi } from './astro-tab.js';
+import { syncHearthtide } from './astro.js';
 
 // Перехватчик генерации — имя прописано в manifest.json (generate_interceptor)
 globalThis.threadInterceptor = interceptor;
@@ -859,6 +860,11 @@ function onChatChanged() {
     Object.assign(astroUi, { sel: null, form: false, busy: '', err: '', info: '' });
     clearPrompts(); // записка прошлого чата не должна уйти в новый
     refreshDiceButton();
+    // ДР с Hearthtide: его откат мог стереть то, что Thread туда дописал, — сводим заново
+    try {
+        const st = getState();
+        if (st && modeOf('astro') !== 'off' && syncHearthtide(st)) saveState();
+    } catch (e) { console.error('[Thread] ДР и Hearthtide:', e); }
     // Ветка от середины чата приносит отметки «из будущего» — возвращаем их к точке ветвления
     syncWithChat('смена чата').catch((e) => console.error('[Thread] откат:', e));
     if (isOpen()) renderAll();

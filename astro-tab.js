@@ -4,10 +4,35 @@
 import { getState, saveState, escapeHtml, getSettings } from './store.js';
 import {
     astroState, astroPeople, astroDay, zodiacOf, daily, retroAt, retroRange, astroCalc, astroSet,
+    syncHearthtide, ageOn, birthdayToday,
     SIGN_ICON, SIGN_RU, MBTI_TYPES, ME,
 } from './astro.js';
 import { ZODIAC_DATA, MBTI_DATA, AZINFO } from './astro-data.js';
 import { avatarFor } from './avatars.js';
+
+const MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+
+function yearsWord(n) {
+    const a = n % 100;
+    const b = n % 10;
+    if (a >= 11 && a <= 14) return 'лет';
+    if (b === 1) return 'год';
+    if (b >= 2 && b <= 4) return 'года';
+    return 'лет';
+}
+
+const D_SRC = { hearthtide: 'из Hearthtide', ai: 'угадано', manual: 'вручную' };
+
+/** Строка «🎂 День рождения: 14 марта 1962 · сейчас 34 года». */
+function birthdayHtml(st, a) {
+    const m = /^(\d{1,2})\.(\d{1,2})(?:\.(\d{4}))?$/.exec(String(a?.d || ''));
+    if (!m) return '';
+    const ad = astroDay(st);
+    const age = ageOn(a.d, ad.ms);
+    const today = birthdayToday(a.d, ad.ms);
+    const src = D_SRC[a.dSrc || a.src] || '';
+    return `<div class="thr-bday ${today ? 'thr-bday-today' : ''}">🎂 ${today ? '<b>Сегодня день рождения!</b> ' : 'День рождения: '}${+m[1]} ${MONTHS_GEN[+m[2] - 1]}${m[3] ? ` ${m[3]}` : ''}${age != null ? ` · ${today ? 'исполняется' : 'сейчас'} ${age} ${yearsWord(age)}` : ''}${src ? ` <span class="thr-note">· ${src}</span>` : ''}</div>`;
+}
 
 export const astroUi = { sel: null, form: false, busy: '', err: '', info: '' };
 
@@ -98,7 +123,7 @@ function detailHtml(st, p) {
             ${ava(st, p, 'thr-ava thr-ava-lg')}
             <div>
                 <div class="thr-astro-name"><b>${escapeHtml(p.name)}</b>${p.isMe ? ' <span class="thr-note">· ты</span>' : ''}${p.isBot ? ' <span class="thr-note">· карточка</span>' : ''}</div>
-                <div>${a?.d ? escapeHtml(a.d) : 'не указано'} <button class="thr-x" type="button" data-act="azedit" title="Изменить" aria-label="Изменить"><i class="fa-solid fa-pen"></i></button></div>
+                <div>${a?.d ? birthdayHtml(st, a) : 'не указано'} <button class="thr-x" type="button" data-act="azedit" title="Изменить" aria-label="Изменить"><i class="fa-solid fa-pen"></i></button></div>
                 ${z ? `<div>${SIGN_ICON[z]} <b>${SIGN_RU[z]}</b> <span class="thr-note">(${escapeHtml(zd.rng)})</span></div>` : ''}
                 ${a?.mbti ? `<div><b>${escapeHtml(a.mbti)}</b>${md ? ` — ${escapeHtml(md.t)}` : ''}</div>` : ''}
             </div>
@@ -140,6 +165,8 @@ function fxHtml(st) {
 }
 
 export function astroHtml(st) {
+    // Дни рождения с Hearthtide — сводим при каждом открытии вкладки
+    if (syncHearthtide(st)) saveState();
     const people = astroPeople(st);
     if (astroUi.sel) {
         const p = people.find((x) => x.key === astroUi.sel);
@@ -151,7 +178,7 @@ export function astroHtml(st) {
         return `
             <button class="thr-astro-row" type="button" data-act="azopen" data-key="${escapeHtml(p.key)}">
                 ${ava(st, p)}
-                <span class="thr-astro-row-main"><b>${escapeHtml(p.name)}</b>${p.isMe ? ' <span class="thr-note">· ты</span>' : ''}
+                <span class="thr-astro-row-main"><b>${escapeHtml(p.name)}</b>${p.isMe ? ' <span class="thr-note">· ты</span>' : ''}${a?.d && birthdayToday(a.d, astroDay(st).ms) ? ' 🎂' : ''}
                     <span class="thr-note">${escapeHtml(profileLine(a))}</span></span>
                 <i class="fa-solid fa-chevron-right thr-note"></i>
             </button>`;

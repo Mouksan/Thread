@@ -1372,3 +1372,11 @@ span.thr-ava {
     width: fit-content;
     margin: 0;
 }
+
+.thr-bday {
+    display: inline;
+}
+
+.thr-bday-today b {
+    color: var(--SmartThemeQuoteColor);
+}

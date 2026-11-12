@@ -235,7 +235,16 @@ export function astroItems(st) {
 
 // ---------- Подбор профилей моделью ----------
 
-const CALC_SYS = 'You invent a fun fictional astro-profile for a character of a roleplay story. Pick a plausible birth date that fits the character as shown in the story, and one of the 16 MBTI types. If the character description below contains an explicit birth date, use it EXACTLY. Reply with EXACTLY one line in the format: DD.MM.YYYY | XXXX (XXXX = MBTI type). No explanations, no other text.';
+const CALC_SYS = [
+    'You build a fun astro-profile for a character of a roleplay story: a birth date and one of the 16 MBTI types.',
+    'Birth date rules, in order:',
+    '1. If the character description states an explicit birth date, use it EXACTLY.',
+    '2. If a known birthday (day and month) is given below, keep that day and month EXACTLY and choose only the year.',
+    "3. Otherwise, if the description or the story states the character's age (in any wording), the birth year MUST make that age exactly right on the current in-story date given below; pick a day and month that fit the character.",
+    '4. Otherwise invent a plausible date that fits the character as shown in the story.',
+    'Always give the full year.',
+    'Reply with EXACTLY one line in the format: DD.MM.YYYY | XXXX (XXXX = MBTI type). No explanations, no other text.',
+].join('\n');
 
 function cardDescription(name) {
     const c = ctx();
@@ -250,7 +259,17 @@ export async function astroCalc(key, name) {
     const st = getState();
     if (!st) return;
     const desc = cardDescription(key === ME ? ME : name);
-    const user = `Character: ${name}${key === ME ? ' (the player)' : ''}\n--- Character description ---\n${desc || '(none)'}\n\n=== Story background ===\n${background()}\n\n=== The story so far (excerpt) ===\n${transcript(12) || '(nothing)'}`;
+    const ad = astroDay(st);
+    const storyDate = new Date(ad.ms).toISOString().slice(0, 10);
+    const known = knownBirthday(st, key);
+    const user = [
+        `Character: ${name}${key === ME ? ' (the player)' : ''}`,
+        `Current in-story date: ${storyDate}${ad.src === 'game' ? '' : ' (no in-story date known — today)'}`,
+        known ? `Known birthday (day.month): ${known} — keep it exactly, choose only the year` : '',
+        `--- Character description ---\n${desc || '(none)'}`,
+        `=== Story background ===\n${background()}`,
+        `=== The story so far (excerpt) ===\n${transcript(12) || '(nothing)'}`,
+    ].filter(Boolean).join('\n\n');
     const raw = await requestJudge({ system: CALC_SYS, user });
     const m = String(raw || '').match(/(\d{1,2})[.\-/](\d{1,2})(?:[.\-/](\d{2,4}))?\s*\|\s*([A-Za-z]{4})/);
     if (!m) throw new Error('No date | MBTI line in the reply');
@@ -258,7 +277,10 @@ export async function astroCalc(key, name) {
     if (!zodiacOf(dstr)) throw new Error('Bad date in the reply');
     const mbti = m[4].toUpperCase();
     const now = getState();
-    astroState(now).people[key] = { d: dstr, mbti: MBTI_TYPES.includes(mbti) ? mbti : '', src: 'ai' };
+    const fixed = knownBirthday(now, key);
+    const d = fixed && dstr.slice(0, 5) !== fixed ? `${fixed}${dstr.length > 5 ? dstr.slice(5) : ''}` : dstr; // день и месяц Харта — святое
+    astroState(now).people[key] = { d, mbti: MBTI_TYPES.includes(mbti) ? mbti : '', src: 'ai', dSrc: fixed ? 'hearthtide' : 'ai' };
+    syncHearthtide(now);
     await saveState();
 }
 
@@ -267,9 +289,99 @@ export function astroSet(st, key, dstr, mbti) {
     const d = String(dstr || '').trim();
     if (d && !zodiacOf(d)) return 'Проверь дату: дд.мм или дд.мм.гггг';
     const people = astroState(st).people;
-    if (!d && !mbti) delete people[key];
-    else people[key] = { d, mbti: MBTI_TYPES.includes(mbti) ? mbti : '', src: 'manual' };
+    if (!d && !mbti) {
+        delete people[key];
+        return '';
+    }
+    people[key] = { d, mbti: MBTI_TYPES.includes(mbti) ? mbti : '', src: 'manual', dSrc: d ? 'manual' : '' };
+    if (d) pushToHearthtide(st, key, d, true); // ручная дата важнее — переезжает в Харт
     return '';
+}
+
+// ---------- Дни рождения и синк с Hearthtide ----------
+// Харт хранит ДР только для {{user}} и {{char}}: chat_metadata.hearthtide.birthdays = { user: { m, d, prep }, char: {…} },
+// удалённые игроком — в birthdayOff. Харт не меняется, Thread читает и дописывает его данные сам.
+
+function hearthtide() {
+    const c = ctx();
+    if (c.groupId) return null; // в группе непонятно, кто для Харта «char»
+    const ht = c.chatMetadata?.hearthtide;
+    return ht && typeof ht === 'object' ? ht : null;
+}
+
+/** Какой ключ Харта у этого человека: 'user' | 'char' | ''. */
+function htWho(st, key) {
+    if (key === ME) return 'user';
+    const bot = botPerson(st);
+    return bot && bot.key === key ? 'char' : '';
+}
+
+const dm = (m, d) => `${String(d).padStart(2, '0')}.${String(m).padStart(2, '0')}`;
+
+/** «дд.мм» из Харта для этого человека ('' — Харт не знает). */
+export function knownBirthday(st, key) {
+    const ht = hearthtide();
+    const who = htWho(st, key);
+    const b = who && ht?.birthdays?.[who];
+    return b && b.m && b.d ? dm(b.m, b.d) : '';
+}
+
+function pushToHearthtide(st, key, dstr, force) {
+    const ht = hearthtide();
+    const who = htWho(st, key);
+    const m = String(dstr || '').match(/^(\d{1,2})[.\-/](\d{1,2})/);
+    if (!ht || !who || !m) return false;
+    if (!force && (ht.birthdays?.[who] || ht.birthdayOff?.[who])) return false; // известный или удалённый тобой — не трогаем
+    ht.birthdays = { ...(ht.birthdays || {}), [who]: { ...(ht.birthdays?.[who] || {}), m: +m[2], d: +m[1] } };
+    if (force && ht.birthdayOff) delete ht.birthdayOff[who]; // ты сама указала дату — запрет снимаем, как делает и сам Харт
+    return true;
+}
+
+/**
+ * Свести ДР Thread и Харта. Харт знает — берём его день и месяц (угаданное переключается, ручное — нет).
+ * Харт не знает и ты не удаляла — отдаём ему наш. Возвращает true, если что-то поменялось (сохранение — на вызывающем).
+ */
+export function syncHearthtide(st) {
+    const ht = hearthtide();
+    if (!ht) return false;
+    const people = astroState(st).people;
+    let changed = false;
+    for (const key of [ME, botPerson(st)?.key].filter(Boolean)) {
+        const known = knownBirthday(st, key);
+        const p = people[key];
+        if (known) {
+            if (!p) {
+                people[key] = { d: known, mbti: '', src: 'ai', dSrc: 'hearthtide' };
+                changed = true;
+            } else if ((p.dSrc || p.src) !== 'manual' && String(p.d || '').slice(0, 5) !== known) {
+                const year = /^\d{1,2}\.\d{1,2}\.(\d{2,4})$/.exec(p.d || '')?.[1];
+                p.d = year ? `${known}.${year}` : known;
+                p.dSrc = 'hearthtide';
+                changed = true;
+            }
+        } else if (p?.d && pushToHearthtide(st, key, p.d, false)) {
+            changed = true;
+        }
+    }
+    return changed;
+}
+
+/** Возраст на дату (null — года нет). */
+export function ageOn(dstr, ms) {
+    const m = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(String(dstr || ''));
+    if (!m) return null;
+    const now = new Date(ms);
+    let age = now.getUTCFullYear() - +m[3];
+    if (now.getUTCMonth() + 1 < +m[2] || (now.getUTCMonth() + 1 === +m[2] && now.getUTCDate() < +m[1])) age--;
+    return age >= 0 && age < 2000 ? age : null;
+}
+
+/** Сегодня (по игровой дате) день рождения? */
+export function birthdayToday(dstr, ms) {
+    const m = /^(\d{1,2})\.(\d{1,2})/.exec(String(dstr || ''));
+    if (!m) return false;
+    const now = new Date(ms);
+    return now.getUTCDate() === +m[1] && now.getUTCMonth() + 1 === +m[2];
 }
 
 export function astroInfluenceGlobal() {
