@@ -1155,3 +1155,65 @@ span.thr-ava {
     width: 150px;
     accent-color: var(--SmartThemeQuoteColor);
 }
+
+/* ---------- Этап 7: жанры, навыки, режимы ---------- */
+
+.thr-genre {
+    padding: 10px 12px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 10px;
+}
+
+.thr-genre summary {
+    cursor: pointer;
+}
+
+.thr-genre[open] summary {
+    margin-bottom: 6px;
+}
+
+.thr-genre .thr-chips {
+    margin: 6px 0;
+}
+
+.thr-skill-right {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.thr-skill:hover .thr-x {
+    opacity: 0.8;
+}
+
+.thr-add-row {
+    display: flex;
+    gap: 6px;
+}
+
+.thr-add-row .text_pole {
+    flex: 1;
+    margin: 0;
+}
+
+.thr-add-row .menu_button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    margin: 0;
+}
+
+.thr-mode-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 0;
+}
+
+.thr-seg.thr-seg3 {
+    flex: none;
+    grid-template-columns: repeat(3, 1fr);
+    width: 190px;
+}

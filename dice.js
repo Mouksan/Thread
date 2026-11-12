@@ -3,7 +3,8 @@
 // исход «заряжается» и уходит боту вместе со следующим ответом.
 
 import { ctx, getState, saveState, escapeHtml, modOn } from './store.js';
-import { skillList, skillVal, pushLog, ensureSkills } from './judge.js';
+import { skillList, skillVal, pushLog } from './judge.js';
+import { reconcileSkills } from './genres.js';
 import { checkNoteText, armedCheck } from './inject.js';
 import { ACH_TITLES, COUNTER_ACH } from './ach.js';
 import { showAch } from './toasts.js';
@@ -75,7 +76,7 @@ function popHtml() {
     const st = getState();
     if (!st) return '<div class="thr-note">Открой чат — у каждой истории свои навыки.</div>';
     if (!modOn('skills')) return '<div class="thr-note">Раздел «Навыки» выключен — включи его в настройках Thread.</div>';
-    ensureSkills(st);
+    reconcileSkills(st);
     const list = skillList(st);
     if (!list.length) return '<div class="thr-note">Навыков пока нет.</div>';
     if (!ui.skill || !list.some((e) => e.name === ui.skill)) ui.skill = list[0].name;

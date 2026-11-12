@@ -8,13 +8,14 @@
 // Этап 5: вкладки целиком — графики, аватары, ✕ у записей, ✓ у обещаний, витрина ачивок, ачивки-счётчики.
 // Этап 5б: главы вручную, аватарки (транслит + ручной выбор), автостарт в новом чате.
 // Этап 6: скан всей истории пачками (scan.js).
+// Этап 7: жанры и набор навыков (genres.js), режимы разделов вкл / скрыть / выкл.
 
 import {
     ctx, getSettings, saveSettings, escapeHtml, clampInt, currentChatId,
-    getState, saveState, META_KEY, modeOf, HIST_DEPTHS,
+    getState, saveState, META_KEY, modeOf, modOn, HIST_DEPTHS, DEFAULT_MODES,
 } from './store.js';
 import {
-    judgeNeeded, systemPrompt, userPrompt, parse, parseDate, applyRow, ensureSkills,
+    judgeNeeded, systemPrompt, userPrompt, parse, parseDate, applyRow,
 } from './judge.js';
 import {
     background, transcript, hearthtideDate, loreMemory, anchorAt, anchorHolds, characterNames, personaName,
@@ -24,13 +25,16 @@ import { snapTake, rollbackCheck, redoCheck } from './state.js';
 import { interceptor, noteText, lastInjected, clearPrompts } from './inject.js';
 import { addDiceButton, refreshDiceButton, closeDice, setDiceChangeHandler, openDice } from './dice.js';
 import {
-    overviewHtml, relsHtml, skillsHtml, flagsHtml, achHtml, handleTabAction, pruneChapters, saveChapterTitle, cancelChapterEdit,
+    overviewHtml, relsHtml, skillsHtml, flagsHtml, achHtml, handleTabAction, pruneChapters, saveChapterTitle, cancelChapterEdit, skillUi,
 } from './tabs.js';
 import { openAvatarMenu, setAvatarChangeHandler } from './avatars.js';
 import {
     startScan, resumeScan, stopScan, undoScan, dismissScan, setScanHooks, scanBlocks, scanRunning, scanBatches,
 } from './scan.js';
 import { checkMilestones } from './milestones.js';
+import {
+    reconcileSkills, genrePromptLines, setGenre, restoreBaseSkills, addSkill, removeSkill, suggestSkills,
+} from './genres.js';
 
 // Перехватчик генерации — имя прописано в manifest.json (generate_interceptor)
 globalThis.threadInterceptor = interceptor;
@@ -112,6 +116,14 @@ async function onBodyClick(e) {
         return;
     }
     if (await onScanAction(btn)) return;
+    if (btn.dataset.act === 'suggest') {
+        onSuggest();
+        return;
+    }
+    if (btn.dataset.act === 'addskill') {
+        await addOwnSkill();
+        return;
+    }
     const st = getState();
     if (!st) return;
     const result = handleTabAction(st, btn);
@@ -121,6 +133,38 @@ async function onBodyClick(e) {
     } else if (result) {
         await saveState();
         renderAll();
+    }
+}
+
+// ---------- Навыки: ✨ из сюжета и свой навык ----------
+
+async function onSuggest() {
+    if (skillUi.suggesting) return;
+    skillUi.suggesting = true;
+    skillUi.error = '';
+    skillUi.list = null;
+    renderAll();
+    try {
+        skillUi.list = await suggestSkills();
+    } catch (error) {
+        skillUi.error = String(error?.message || error).slice(0, 200);
+        console.error('[Thread] навыки из сюжета:', error);
+    } finally {
+        skillUi.suggesting = false;
+        renderAll();
+    }
+}
+
+async function addOwnSkill() {
+    const input = overlayEl.querySelector('.thr-skill-input');
+    const st = getState();
+    if (!input || !st) return;
+    if (addSkill(st, input.value)) {
+        await saveState();
+        renderAll();
+        overlayEl.querySelector('.thr-skill-input')?.focus();
+    } else if (input.value.trim()) {
+        showNote('Такой навык уже есть, имя длиннее трёх слов или навыков уже 12.', { force: true });
     }
 }
 
@@ -173,6 +217,11 @@ async function onScanAction(btn) {
 
 /** Поле названия главы: Enter или уход фокуса — сохранить, Esc — отменить. */
 function onBodyKey(e) {
+    if (e.target.classList?.contains('thr-skill-input') && e.key === 'Enter') {
+        e.preventDefault();
+        addOwnSkill();
+        return;
+    }
     if (!e.target.classList?.contains('thr-ch-input')) return;
     if (e.key === 'Enter') {
         e.preventDefault();
@@ -300,10 +349,10 @@ async function evaluate({ quiet = false } = {}) {
     try {
         const depth = getSettings().histDepth;
         const st = getState();
-        ensureSkills(st);
+        reconcileSkills(st);
         const date = hearthtideDate(depth);
         const cx = { bg: background(), memory: await loreMemory(), date };
-        const system = systemPrompt({ hasDate: Boolean(date) });
+        const system = systemPrompt({ hasDate: Boolean(date), extra: genrePromptLines(st, modOn('ach')) });
         const user = userPrompt(st, cx, transcript(depth));
         const anchor = anchorAt(total - 1); // что именно прочитал судья
         lastJudge = { at: new Date(), mode: quiet ? 'авто' : 'вручную', chars: system.length + user.length, system, user, raw: '', error: '', result: '' };
@@ -517,6 +566,12 @@ function settingsHtml() {
             </div>
 
             <div class="thr-set-group">
+                <div class="thr-label"><b>Разделы</b></div>
+                <div class="thr-note">Вкл — работает и видно. Скрыть — вкладка спрятана, но данные собираются. Выкл — не собирается и не тратит токены: раздел уходит из запроса судье и из записки боту.</div>
+                <div id="thr_modes"></div>
+            </div>
+
+            <div class="thr-set-group">
                 <div class="thr-label"><b>Скан всей истории</b></div>
                 <div class="thr-note">Судья читает чат с самого начала пачками и ставит отметки по всей истории. Скрытые сообщения тоже читаются, память судьи на время скана выключена — сводки знают будущее. Главы ставятся сами, каждые 25 сообщений. Скан начинает с чистого листа, но его можно отменить.</div>
                 <div class="thr-set-row">
@@ -596,6 +651,14 @@ function bindSettings() {
         saveSettings();
     });
     $('thr_reset').addEventListener('click', onResetClick);
+    $('thr_modes').addEventListener('click', (e) => {
+        const b = e.target.closest('[data-mode]');
+        if (!b) return;
+        getSettings().modes[b.dataset.sec] = b.dataset.mode;
+        saveSettings();
+        refreshDiceButton();
+        renderAll();
+    });
     $('thr_scansize').addEventListener('input', (e) => {
         getSettings().scanSize = clampInt(e.target.value, 30, 80, 50);
         saveSettings();
@@ -615,6 +678,7 @@ function syncSettings() {
     $('thr_repstart').value = s.repStart;
     $('thr_memchat').checked = Boolean(s.memChat);
     $('thr_scansize').value = s.scanSize;
+    syncModes();
     syncScanEstimate();
     $('thr_reset').disabled = !currentChatId();
 
@@ -640,6 +704,27 @@ function syncSettings() {
     $('thr_last_sync').textContent = lastSync
         ? `Последняя сверка с чатом: ${lastSync.at.toLocaleTimeString('ru-RU')} · ${lastSync.source} · отменено оценок: ${lastSync.undone}, возвращено: ${lastSync.redone}`
         : 'С момента загрузки страницы откатов не было.';
+}
+
+const SECTIONS = [
+    ['rels', 'Отношения', 'Кто как к тебе относится, связи между персонажами'],
+    ['facts', 'Досье', 'Факты и секреты персонажей — под их карточками в «Отношениях»'],
+    ['skills', 'Навыки', 'Характеристики и проверки 🎲'],
+    ['rep', 'Репутация', 'Положение в мире истории'],
+    ['flags', 'Метки и обещания', 'Статусы, клятвы, долги и обещания'],
+    ['ach', 'Ачивки', 'Коллекция памятных моментов'],
+];
+const MODE_LABELS = { on: 'вкл', hide: 'скрыть', off: 'выкл' };
+
+function syncModes() {
+    const modes = getSettings().modes;
+    overlayEl.querySelector('#thr_modes').innerHTML = SECTIONS.map(([key, title, hint]) => `
+        <div class="thr-mode-row">
+            <div><b>${title}</b><div class="thr-note">${hint}</div></div>
+            <div class="thr-seg thr-seg3">${Object.entries(MODE_LABELS).map(([m, label]) => `
+                <button type="button" data-sec="${key}" data-mode="${m}" class="${modes[key] === m ? 'thr-on' : ''}">${label}</button>`).join('')}
+            </div>
+        </div>`).join('');
 }
 
 function syncScanEstimate() {
@@ -725,6 +810,8 @@ function onChatChanged() {
     clearInterval(watchTimer);
     disarmReset();
     closeDice();
+    skillUi.list = null;
+    skillUi.error = '';
     clearPrompts(); // записка прошлого чата не должна уйти в новый
     refreshDiceButton();
     // Ветка от середины чата приносит отметки «из будущего» — возвращаем их к точке ветвления

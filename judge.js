@@ -11,8 +11,6 @@ export const MAX_RELS = 12;
 export const MAX_ACH = 60;
 const NEW_SKILL = 0;
 
-// Базовые навыки (в оригинале — пресеты sk1..sk3, включённые по умолчанию). Жанры и свои наборы — этап 6.
-const BASE_SKILLS = ['Дипломатия', 'Храбрость', 'Рассудительность'];
 
 const SYSTEM = [
   'You track the game-like stats of an interactive story. You read the last messages of the story and judge the CURRENT state of things. You never roleplay and never address anyone.',
@@ -92,7 +90,7 @@ const SCAN_NOTE = 'SCAN MODE: you are reading a long story from its very beginni
 
 export const SCAN_LIMITS = { rows: 24, marks: 3, quests: 3, facts: 4, ach: 3, links: 3 };
 
-export function systemPrompt({ hasDate = false, scan = false } = {}) {
+export function systemPrompt({ hasDate = false, scan = false, extra = [] } = {}) {
     let n = 0;
     const lines = SYSTEM.split('\n')
         .filter((l) => {
@@ -107,7 +105,7 @@ export function systemPrompt({ hasDate = false, scan = false } = {}) {
         .map((l) => (l === 'You track six kinds of marks:' ? 'You track these kinds of marks:' : l))
         // Thread: досье выключено — не упоминаем его строки вовсе
         .map((l) => (modOn('facts') ? l : l.replace('FACT, SECRET and PROMISE lines', 'PROMISE lines').replace(' FACT, SECRET,', '')));
-    let text = lines.join('\n');
+    let text = lines.concat(extra).join('\n');
     if (scan) {
         for (const [from, to] of SCAN_SWAPS) text = text.split(from).join(to);
         text = `${SCAN_NOTE}\n\n${text}`;
@@ -139,19 +137,6 @@ export function openQuests(st) {
 export function achTitle(a) {
     if (!a) return '';
     return (a.slug && ACH_TITLES[a.slug]) || a.title || '';
-}
-
-/** Базовые навыки появляются в состоянии до первой оценки — судье нужен список. */
-export function ensureSkills(st) {
-    let changed = false;
-    for (const name of BASE_SKILLS) {
-        const key = name.toLowerCase();
-        if (!st.skills[key] && Object.keys(st.skills).length < MAX_SKILLS) {
-            st.skills[key] = { name, v: NEW_SKILL, src: 'preset' };
-            changed = true;
-        }
-    }
-    return changed;
 }
 
 // ---------- Запрос судье ----------
@@ -219,7 +204,7 @@ function linkTypeSlug(t) {
 }
 
 // отсекаем мусор: фразы ошибок провайдера и длинные предложения — не навыки
-function goodSkillName(x) {
+export function goodSkillName(x) {
     if (!x) return false;
     if (x.split(/\s+/).length > 3) return false;
     if (/[.!?,;:]$/.test(x)) return false;

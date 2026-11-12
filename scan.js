@@ -4,8 +4,9 @@
 // выключена: сводки знают будущее. Перед стартом — бэкап, скан можно отменить.
 // Ошибка или «Стоп» — пауза: продолжаем с той же пачки, прогресс живёт в метаданных чата.
 
-import { ctx, getSettings, getState, saveState, currentChatId, emptyState, clampInt } from './store.js';
-import { systemPrompt, userPrompt, parse, parseDate, applyRow, ensureSkills, SCAN_LIMITS } from './judge.js';
+import { ctx, getSettings, getState, saveState, currentChatId, emptyState, clampInt, modOn } from './store.js';
+import { systemPrompt, userPrompt, parse, parseDate, applyRow, SCAN_LIMITS } from './judge.js';
+import { reconcileSkills, genrePromptLines } from './genres.js';
 import { background, transcriptRange, hearthtideDateRange, characterNames, personaName } from './context.js';
 import { requestJudge } from './connection.js';
 import { snapTake } from './state.js';
@@ -57,8 +58,9 @@ export async function startScan() {
     const { scanBackup: _old, scan: _oldScan, ...rest } = st;
     const backup = structuredClone(rest);
     const avatars = structuredClone(st.avatars || {});
+    const keep = { genre: st.genre || '', skillsOff: structuredClone(st.skillsOff || []) };
     for (const key of Object.keys(st)) delete st[key];
-    Object.assign(st, emptyState(), { avatars, scanBackup: backup });
+    Object.assign(st, emptyState(), keep, { avatars, scanBackup: backup });
     st.chapters = [{ start: 0, title: '' }];
     for (let b = CHAPTER_EVERY; b < total; b += CHAPTER_EVERY) st.chapters.push({ start: b, title: '' });
     const batches = scanBatches(total);
@@ -120,10 +122,10 @@ async function runScan() {
             }
             sc.paused = false;
             const [from, to] = sc.batches[sc.next];
-            ensureSkills(st);
+            reconcileSkills(st);
 
             const date = hearthtideDateRange(from, to);
-            const system = systemPrompt({ hasDate: Boolean(date), scan: true });
+            const system = systemPrompt({ hasDate: Boolean(date), scan: true, extra: genrePromptLines(st, modOn('ach')) });
             const user = userPrompt(st, { bg: background(), memory: '', date }, transcriptRange(from, to), { from, to, total: sc.total });
             let raw;
             try {

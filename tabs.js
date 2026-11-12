@@ -6,7 +6,8 @@ import {
     skillList, skillVal, relVal, signed, activeFlags, achTitle, LINK_LABELS,
 } from './judge.js';
 import { markLineHtml } from './toasts.js';
-import { achIcon, RARITY_LABELS, JUDGE_ACH, COUNTER_ACH, ACH_HINTS } from './ach.js';
+import { achIcon, RARITY_LABELS, JUDGE_ACH, COUNTER_ACH, GENRE_ACH, ACH_HINTS } from './ach.js';
+import { GENRES, genreOf, setGenre, restoreBaseSkills, removeSkill, addSkill, baseSkillNames } from './genres.js';
 import { avatarFor } from './avatars.js';
 import { scanCardHtml, scanBlocks, scanBatches } from './scan.js';
 
@@ -200,22 +201,66 @@ export function relsHtml(st) {
 
 // ---------- Навыки ----------
 
+/** Состояние подбора навыков «✨ из сюжета» — живёт, пока открыто окно. */
+export const skillUi = { suggesting: false, list: null, error: '' };
+
+function genreHtml(st) {
+    const g = genreOf(st);
+    const chips = Object.entries(GENRES).map(([id, x]) => `
+        <button class="thr-chip-btn ${id === g ? 'thr-on' : ''}" type="button" data-act="genre" data-genre="${id}">${x.icon} ${escapeHtml(x.label)}</button>`).join('');
+    return `
+        <details class="thr-genre" ${g ? '' : 'open'}>
+            <summary><b>🎭 Жанр истории:</b> ${g ? `${GENRES[g].icon} ${escapeHtml(GENRES[g].label)}` : 'не выбран'}</summary>
+            <div class="thr-note">Один клик — навыки под жанр, судья замечает жанровые вещи, появляются жанровые ачивки. Прокачанные навыки не пропадут.</div>
+            <div class="thr-chips">${chips}${g ? '<button class="thr-chip-btn" type="button" data-act="genre" data-genre="">✕ без жанра</button>' : ''}</div>
+            <div class="thr-note">Базовые навыки ${g ? 'жанра' : ''}: ${escapeHtml(baseSkillNames(st).join(', '))}</div>
+        </details>`;
+}
+
+function suggestHtml() {
+    if (skillUi.suggesting) return '<div class="thr-note"><i class="fa-solid fa-spinner fa-spin"></i> Подбираю навыки по сюжету…</div>';
+    if (skillUi.error) return `<div class="thr-note thr-down">Не получилось подобрать: ${escapeHtml(skillUi.error)}</div>`;
+    if (!skillUi.list) return '';
+    if (!skillUi.list.length) return '<div class="thr-note">Ничего нового — все подходящие навыки уже есть.</div>';
+    return `
+        <div class="thr-note">Клик — добавить навык:</div>
+        <div class="thr-chips">
+            ${skillUi.list.map((n) => `<button class="thr-chip-btn" type="button" data-act="addsug" data-name="${escapeHtml(n)}">+ ${escapeHtml(n)}</button>`).join('')}
+            ${skillUi.list.length > 1 ? `<button class="thr-chip-btn thr-on" type="button" data-act="addallsug">все ${skillUi.list.length}</button>` : ''}
+        </div>`;
+}
+
 export function skillsHtml(st) {
     const list = skillList(st).slice().sort((a, b) => skillVal(st, b.name.toLowerCase()) - skillVal(st, a.name.toLowerCase()));
-    if (!list.length) return emptyHtml('Навыков пока нет — появятся после первой оценки.');
     const check = `
         <button class="menu_button thr-wide-btn" type="button" data-act="dice">
             <i class="fa-solid fa-dice-d20"></i><span>Проверка навыка</span>
         </button>`;
-    return check + list.map((e) => {
-        const v = skillVal(st, e.name.toLowerCase());
+    const cards = list.length ? list.map((e) => {
+        const key = e.name.toLowerCase();
+        const v = skillVal(st, key);
         return `
-            <div class="thr-card">
-                <div class="thr-card-head"><span>${v >= 75 ? '<i class="fa-solid fa-star thr-star" title="Мастер"></i> ' : ''}${escapeHtml(e.name)}</span><b>${v}<small> / 100</small></b></div>
+            <div class="thr-card thr-skill">
+                <div class="thr-card-head">
+                    <span>${v >= 75 ? '<i class="fa-solid fa-star thr-star" title="Мастер"></i> ' : ''}${escapeHtml(e.name)}</span>
+                    <span class="thr-skill-right"><b>${v}<small> / 100</small></b>
+                        <button class="thr-x" type="button" data-act="rmskill" data-key="${escapeHtml(key)}" title="Убрать навык (история по нему сотрётся)" aria-label="Убрать навык"><i class="fa-solid fa-xmark"></i></button></span>
+                </div>
                 <div class="thr-bar"><i style="width:${v}%"></i></div>
                 <div class="thr-note">бонус к броску: +${Math.floor(v / 10)}</div>
             </div>`;
-    }).join('');
+    }).join('') : emptyHtml('Навыков нет — выбери жанр, нажми «✨ Из сюжета» или впиши свой.');
+    const tools = `
+        <div class="thr-btn-row">
+            <button class="menu_button thr-wide-btn" type="button" data-act="suggest" ${skillUi.suggesting ? 'disabled' : ''}><i class="fa-solid fa-wand-magic-sparkles"></i><span>Из сюжета</span></button>
+            <button class="menu_button thr-wide-btn" type="button" data-act="restoreskills"><i class="fa-solid fa-rotate-left"></i><span>Вернуть базовые</span></button>
+        </div>
+        <div class="thr-add-row">
+            <input class="text_pole thr-skill-input" type="text" maxlength="24" placeholder="Свой навык — например, Стрельба" />
+            <button class="menu_button" type="button" data-act="addskill" title="Добавить навык" aria-label="Добавить навык"><i class="fa-solid fa-plus"></i></button>
+        </div>
+        ${suggestHtml()}`;
+    return genreHtml(st) + check + cards + tools;
 }
 
 // ---------- Метки и обещания ----------
@@ -268,7 +313,9 @@ export function flagsHtml(st) {
 export function achHtml(st) {
     const got = Object.values(st.ach).filter(Boolean)
         .sort((a, b) => (RARITY_ORDER[a.rarity] ?? 3) - (RARITY_ORDER[b.rarity] ?? 3) || (b.at || 0) - (a.at || 0));
-    const builtin = { ...JUDGE_ACH, ...COUNTER_ACH };
+    const g = genreOf(st);
+    const genreAch = g ? Object.fromEntries(Object.keys(GENRES[g].ach).map((slug) => [slug, GENRE_ACH[slug]])) : {};
+    const builtin = { ...JUDGE_ACH, ...COUNTER_ACH, ...genreAch };
     const sealed = Object.keys(builtin).filter((slug) => !st.ach[slug])
         .sort((a, b) => (RARITY_ORDER[builtin[a]] ?? 3) - (RARITY_ORDER[builtin[b]] ?? 3));
     const gotBuiltin = Object.keys(builtin).length - sealed.length;
@@ -352,6 +399,20 @@ export function handleTabAction(st, btn) {
         if (act === 'qrm') delete st.quests[btn.dataset.k];
         else Object.assign(q, { on: false, end: 'закрыто вручную', endAt: Date.now() });
         return true;
+    }
+    if (act === 'genre') {
+        setGenre(st, btn.dataset.genre);
+        skillUi.list = null;
+        return true;
+    }
+    if (act === 'rmskill') return removeSkill(st, btn.dataset.key);
+    if (act === 'restoreskills') return restoreBaseSkills(st) || 'render';
+    if (act === 'addsug' || act === 'addallsug') {
+        const names = act === 'addsug' ? [btn.dataset.name] : (skillUi.list || []);
+        let changed = false;
+        for (const n of names) changed = addSkill(st, n) || changed;
+        skillUi.list = act === 'addsug' ? (skillUi.list || []).filter((x) => x !== btn.dataset.name) : null;
+        return changed || 'render';
     }
     if (act === 'rmfact') {
         const list = st.facts?.[btn.dataset.name];
