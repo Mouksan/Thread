@@ -28,6 +28,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
     toastMode: 'click',  // когда сноска уходит: 'click' | '5' | '15' (секунды)
     repStart: 50,        // с чего начинается репутация
     memChat: false,      // память судьи: лорбук, привязанный к чату
+    scanSize: 50,        // скан истории: сообщений в пачке (30–80)
     modes: DEFAULT_MODES,
 });
 
@@ -90,7 +91,7 @@ export function currentChatId() {
     return ctx().getCurrentChatId?.() || null;
 }
 
-function emptyState() {
+export function emptyState() {
     return {
         v: 1,
         touched: false,   // судья хоть раз смотрел эту историю

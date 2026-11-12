@@ -174,3 +174,41 @@ export function anchorHolds(anchor, index) {
     if (!m) return false;
     return cleanMessage(m.mes).replace(/\s+/g, ' ').includes(anchor.snip);
 }
+
+// ---------- Скан всей истории ----------
+
+/** Сообщения [from, to) для скана — вместе со скрытыми; служебные сообщения таверны пропускаем. */
+function rangeMessages(from, to) {
+    const chat = Array.isArray(ctx().chat) ? ctx().chat : [];
+    const out = [];
+    for (let i = from; i < Math.min(to, chat.length); i++) {
+        const m = chat[i];
+        if (!m) continue;
+        const type = m.extra?.type;
+        if (m.is_system && type && type !== 'narrator') continue; // справка, приветствие таверны и т.п.
+        out.push({ index: i, name: m.name || (m.is_user ? personaName() : 'Character'), raw: String(m.mes || '') });
+    }
+    return out;
+}
+
+/** Кусок переписки для пачки скана — целиком, как и обычный. */
+export function transcriptRange(from, to) {
+    return rangeMessages(from, to)
+        .map((m) => ({ name: m.name, text: cleanMessage(m.raw) }))
+        .filter((m) => m.text)
+        .map((m) => `${m.name}:\n${m.text}`)
+        .join('\n\n');
+}
+
+/** Дата из последнего тега Hearthtide внутри пачки. */
+export function hearthtideDateRange(from, to) {
+    const list = rangeMessages(from, to);
+    for (let i = list.length - 1; i >= 0; i--) {
+        const tags = [...list[i].raw.matchAll(HT_TAG)];
+        for (let j = tags.length - 1; j >= 0; j--) {
+            const text = htText(htFields(tags[j][1]));
+            if (text) return text;
+        }
+    }
+    return '';
+}

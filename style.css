@@ -1111,3 +1111,47 @@ span.thr-ava {
     margin: 0;
     white-space: nowrap;
 }
+
+/* ---------- Этап 6: скан истории ---------- */
+
+.thr-scan .thr-card-head i {
+    margin-right: 4px;
+    color: var(--SmartThemeQuoteColor);
+}
+
+.thr-btn-row {
+    display: flex;
+    gap: 8px;
+}
+
+.thr-btn-row .menu_button.thr-wide-btn {
+    flex: 1;
+}
+
+.thr-pane .menu_button.thr-wide-btn.thr-armed,
+.thr-set .menu_button.thr-wide-btn.thr-armed {
+    border-color: var(--SmartThemeQuoteColor);
+    background: color-mix(in srgb, var(--SmartThemeQuoteColor) 18%, transparent);
+}
+
+.thr-hint-btn {
+    margin-top: 8px !important;
+}
+
+.thr-set .menu_button.thr-wide-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    margin: 0;
+    padding: 9px 14px;
+    font-weight: 600;
+    border-radius: 12px;
+}
+
+.thr-range {
+    flex: none;
+    width: 150px;
+    accent-color: var(--SmartThemeQuoteColor);
+}

@@ -78,7 +78,21 @@ export function judgeNeeded() {
     return JUDGE_SECTIONS.some(modOn);
 }
 
-export function systemPrompt({ hasDate = false } = {}) {
+// Thread: при скане всей истории судья читает пачку из десятков сообщений — лимиты шире (14 / 3 / 3 / 3)
+const SCAN_SWAPS = [
+    ['at most one MARK line per piece of the story, and most pieces earn none', 'at most three MARK lines per stretch, and most stretches earn none'],
+    ['At most one LINK line per piece of the story.', 'At most three LINK lines per stretch.'],
+    ['At most ONE achievement per piece of the story; most pieces earn none.', 'At most THREE achievements per stretch; many stretches earn none.'],
+    ['At most two FACT/SECRET lines per piece.', 'At most four FACT/SECRET lines per stretch.'],
+    ['At most one PROMISE line per piece.', 'At most three PROMISE lines per stretch.'],
+    ['(at most 6 lines, at most one MARK line and at most one ACH line)', '(at most 14 lines, at most three MARK lines and at most three ACH lines)'],
+    ['toward the 6-line limit', 'toward the 14-line limit'],
+];
+const SCAN_NOTE = 'SCAN MODE: you are reading a long story from its very beginning, one stretch of several dozen messages at a time, in order. A stretch can hold many events. For skills, reputation and relationships give the NET correction over the whole stretch — one line per target that sums up everything that happened in it, not one line per event. Open promises the stretch sets up and close the ones it resolves.';
+
+export const SCAN_LIMITS = { rows: 24, marks: 3, quests: 3, facts: 4, ach: 3, links: 3 };
+
+export function systemPrompt({ hasDate = false, scan = false } = {}) {
     let n = 0;
     const lines = SYSTEM.split('\n')
         .filter((l) => {
@@ -93,7 +107,12 @@ export function systemPrompt({ hasDate = false } = {}) {
         .map((l) => (l === 'You track six kinds of marks:' ? 'You track these kinds of marks:' : l))
         // Thread: досье выключено — не упоминаем его строки вовсе
         .map((l) => (modOn('facts') ? l : l.replace('FACT, SECRET and PROMISE lines', 'PROMISE lines').replace(' FACT, SECRET,', '')));
-    return `${lines.join('\n')}\n\n${LANG_DIRECTIVE}`;
+    let text = lines.join('\n');
+    if (scan) {
+        for (const [from, to] of SCAN_SWAPS) text = text.split(from).join(to);
+        text = `${SCAN_NOTE}\n\n${text}`;
+    }
+    return `${text}\n\n${LANG_DIRECTIVE}`;
 }
 
 // ---------- Состояние: чтение ----------
@@ -161,14 +180,17 @@ function stateBlock(st) {
 }
 
 /** cx — из context.js: { bg, memory, date }; tx — кусок переписки. */
-export function userPrompt(st, cx, tx) {
+export function userPrompt(st, cx, tx, scan = null) {
     const parts = [];
     if (cx.bg) parts.push('=== Story background ===\n' + cx.bg);
     parts.push(stateBlock(st));
     if (cx.memory) parts.push('=== Story memory (condensed past, for context only) ===\n' + cx.memory + '\n(This is background about what happened earlier. Use it to judge the TRUE current levels, but report only corrections from the tracked values above — never re-report old events as new.)');
     // Thread: дата из Hearthtide идёт судье как справка
     if (cx.date) parts.push('=== Current in-story date ===\n' + cx.date);
-    parts.push('=== New piece of the story (the last messages) ===\n' + (tx || '(nothing new)'));
+    const header = scan
+        ? `=== Next stretch of the story (messages ${scan.from + 1}–${scan.to} of ${scan.total}, read in order from the beginning) ===`
+        : '=== New piece of the story (the last messages) ===';
+    parts.push(header + '\n' + (tx || '(nothing new)'));
     parts.push('Now output the lines, or NONE.');
     return parts.join('\n\n');
 }
@@ -234,11 +256,16 @@ const clamp = (v, lim) => Math.max(-lim, Math.min(lim, v));
 const wordCount = (s) => s.split(/\s+/).filter((w) => w !== '|').length;
 
 /** Строки ответа судьи → отметки. Лимиты жёсткие, независимо от модели. */
-export function parse(raw) {
+const NORMAL_LIMITS = { rows: 11, marks: 1, quests: 1, facts: 2, ach: 99, links: 99 };
+
+export function parse(raw, limits = NORMAL_LIMITS) {
+    const lim = { ...NORMAL_LIMITS, ...limits };
     const rows = [];
-    let markSeen = false; // не больше одной метки за проход
+    let markN = 0; // не больше одной метки за проход (при скане — трёх)
     let factN = 0;
-    let questSeen = false;
+    let questN = 0;
+    let achN = 0;
+    let linkN = 0;
     String(raw || '').replace(/```[a-z]*|```/gi, '').split(/\r?\n/).forEach((line) => {
         const p = line.split('|').map((x) => x.trim());
         const kind = String(p[0] || '').toUpperCase().replace(/[^A-Z]/g, '');
@@ -256,24 +283,26 @@ export function parse(raw) {
             const rn = cleanName(p.slice(1, hit.i).join(' | '));
             if (rn && wordCount(rn) <= 6 && !/could not|cannot|prompt|error/i.test(rn)) rows.push({ kind, target: rn, delta: clamp(hit.d, 35), note: (p.slice(hit.i + 1).join(' | ') || '').slice(0, 240) });
         } else if (kind === 'MARK' && p.length >= 2) {
-            if (markSeen) return;
+            if (markN >= lim.marks) return;
             const on = String(p[1] || '').trim().charAt(0) !== '-';
             const mn = cleanName(p[1], 40);
             if (mn && !/could not|cannot|prompt is|error/i.test(mn)) {
-                markSeen = true;
+                markN++;
                 rows.push({ kind, target: mn, delta: 0, on, note: (p.slice(2).join(' | ') || '').slice(0, 240) });
             }
         } else if (kind === 'LINK' && p.length >= 4) {
+            if (linkN >= lim.links) return;
             const na = cleanName(p[1]);
             const nb = cleanName(p[2]);
             const hit = findDelta(p, 3);
             const ld = hit ? hit.d : 0;
             const ltRaw = hit && hit.i > 3 ? p.slice(3, hit.i).join(' ') : (hit && hit.i === 3 ? '' : String(p[3] || ''));
             if (na && nb && ld && na.toLowerCase() !== nb.toLowerCase() && wordCount(na) <= 6 && wordCount(nb) <= 6) {
+                linkN++;
                 rows.push({ kind, a: na, b: nb, ltype: linkTypeSlug(ltRaw), delta: clamp(ld, 40), note: (hit ? p.slice(hit.i + 1).join(' | ') : '').slice(0, 240) });
             }
         } else if ((kind === 'FACT' || kind === 'SECRET') && p.length >= 3) {
-            if (factN >= 2) return;
+            if (factN >= lim.facts) return;
             const fn = cleanName(p[1]);
             const fx = p.slice(2).join(' | ').replace(/^\s*secret\s*:\s*/i, '').trim().slice(0, 140);
             if (fn && fx && fn.split(/\s+/).length <= 6 && !/could not|cannot|prompt|error/i.test(fx)) {
@@ -281,21 +310,22 @@ export function parse(raw) {
                 rows.push({ kind: 'FACT', target: fn, secret: kind === 'SECRET', note: fx, delta: 0 });
             }
         } else if (kind === 'PROMISE' && p.length >= 2) {
-            if (questSeen) return;
+            if (questN >= lim.quests) return;
             const on = String(p[1] || '').trim().charAt(0) !== '-';
             const qn = String(p[1] || '').replace(/^[\s+\-−–]+/, '').replace(/[*_`«»"]/g, '').trim().slice(0, 90);
             if (qn && !/could not|cannot|prompt is|error/i.test(qn)) {
-                questSeen = true;
+                questN++;
                 rows.push({ kind, target: qn, on, note: (p.slice(2).join(' | ') || '').slice(0, 200), delta: 0 });
             }
         } else if (kind === 'ACH' && p.length >= 4) {
+            if (achN >= lim.ach) return;
             const slug = cleanName(p[1], 32).toLowerCase().replace(/[\s_]+/g, '-').replace(/[^a-z0-9а-яё-]/g, '');
             const rarity = /legend|легенд/i.test(p[2]) ? 'legendary' : /rare|редк/i.test(p[2]) ? 'rare' : 'common';
             const title = cleanName(p[3], 48);
-            if (slug && title && goodTitle(title)) rows.push({ kind, target: slug, rarity, title, delta: 0, note: (p.slice(4).join(' | ') || '').slice(0, 240) });
+            if (slug && title && goodTitle(title) && ++achN) rows.push({ kind, target: slug, rarity, title, delta: 0, note: (p.slice(4).join(' | ') || '').slice(0, 240) });
         }
     });
-    return rows.slice(0, 11).filter((r) => !ROW_MOD[r.kind] || modOn(ROW_MOD[r.kind]));
+    return rows.slice(0, lim.rows).filter((r) => !ROW_MOD[r.kind] || modOn(ROW_MOD[r.kind]));
 }
 
 /** Строка DATE из ответа судьи (если есть). */

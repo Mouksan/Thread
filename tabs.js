@@ -8,6 +8,7 @@ import {
 import { markLineHtml } from './toasts.js';
 import { achIcon, RARITY_LABELS, JUDGE_ACH, COUNTER_ACH, ACH_HINTS } from './ach.js';
 import { avatarFor } from './avatars.js';
+import { scanCardHtml, scanBlocks, scanBatches } from './scan.js';
 
 const RARITY_ORDER = { legendary: 0, rare: 1, common: 2 };
 
@@ -134,13 +135,15 @@ export function overviewHtml(st, busy) {
     const feedHtml = feed.length ? `<div class="thr-sec">Последние события</div><div class="thr-feed">${feedRows}</div>` : '';
     const firstHint = total <= 10
         ? 'Судья ещё не смотрел эту историю. Он сам заглянет после первого ответа бота на твоё сообщение — или нажми ⟳ в шапке прямо сейчас.'
-        : 'Судья ещё не смотрел эту историю. Нажми ⟳ в шапке — он поставит первые отметки по последним сообщениям. Для длинной истории сначала поставь в настройках глубину 80 и включи память судьи.';
+        : `Судья ещё не смотрел эту историю. Её можно прочитать целиком — пачками по ${getSettings().scanSize} сообщений, с самого начала (≈ ${scanBatches(total).length} запросов к судье). Или нажми ⟳ в шапке — тогда он оценит только последние сообщения.
+           <button class="menu_button thr-wide-btn thr-hint-btn" type="button" data-act="scanstart"><i class="fa-solid fa-book-open"></i><span>Прочитать всю историю</span></button>`;
 
     return `
         ${chapterHtml}
+        ${scanCardHtml(st, escapeHtml)}
         ${busy ? '<div class="thr-hint">Судья листает страницы…</div>' : ''}
         ${repCard}
-        ${st.touched ? '' : `<div class="thr-hint">${firstHint}</div>`}
+        ${st.touched || scanBlocks(st) ? '' : `<div class="thr-hint">${firstHint}</div>`}
         ${feedHtml}
         <div class="thr-note thr-progress">${escapeHtml(progress)}</div>`;
 }

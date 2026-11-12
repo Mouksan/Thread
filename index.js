@@ -7,6 +7,7 @@
 // Этап 4: скрытая записка боту и проверка навыка 🎲 у поля ввода.
 // Этап 5: вкладки целиком — графики, аватары, ✕ у записей, ✓ у обещаний, витрина ачивок, ачивки-счётчики.
 // Этап 5б: главы вручную, аватарки (транслит + ручной выбор), автостарт в новом чате.
+// Этап 6: скан всей истории пачками (scan.js).
 
 import {
     ctx, getSettings, saveSettings, escapeHtml, clampInt, currentChatId,
@@ -26,6 +27,9 @@ import {
     overviewHtml, relsHtml, skillsHtml, flagsHtml, achHtml, handleTabAction, pruneChapters, saveChapterTitle, cancelChapterEdit,
 } from './tabs.js';
 import { openAvatarMenu, setAvatarChangeHandler } from './avatars.js';
+import {
+    startScan, resumeScan, stopScan, undoScan, dismissScan, setScanHooks, scanBlocks, scanRunning, scanBatches,
+} from './scan.js';
 import { checkMilestones } from './milestones.js';
 
 // Перехватчик генерации — имя прописано в manifest.json (generate_interceptor)
@@ -107,6 +111,7 @@ async function onBodyClick(e) {
         openAvatarMenu(btn, btn.dataset.name);
         return;
     }
+    if (await onScanAction(btn)) return;
     const st = getState();
     if (!st) return;
     const result = handleTabAction(st, btn);
@@ -117,6 +122,53 @@ async function onBodyClick(e) {
         await saveState();
         renderAll();
     }
+}
+
+// ---------- Скан всей истории: кнопки ----------
+
+let armedAct = '';
+let armedTimer = null;
+
+/** Опасные кнопки срабатывают со второго нажатия: первое меняет подпись. */
+function confirmTwice(btn, key, text) {
+    if (armedAct === key) {
+        armedAct = '';
+        clearTimeout(armedTimer);
+        return true;
+    }
+    armedAct = key;
+    const label = btn.querySelector('span') || btn;
+    const old = label.textContent;
+    label.textContent = text;
+    btn.classList.add('thr-armed');
+    clearTimeout(armedTimer);
+    armedTimer = setTimeout(() => {
+        armedAct = '';
+        if (btn.isConnected) {
+            label.textContent = old;
+            btn.classList.remove('thr-armed');
+        }
+    }, 5000);
+    return false;
+}
+
+async function onScanAction(btn) {
+    const act = btn.dataset.act;
+    if (!['scanstart', 'scanstop', 'scanresume', 'scanundo', 'scanok'].includes(act)) return false;
+    const st = getState();
+    if (!st) return true;
+    if (act === 'scanstart') {
+        if (busy || scanRunning()) return true;
+        if (st.touched && !confirmTwice(btn, 'scanstart', 'В чате уже есть отметки — скан начнёт с чистого листа. Нажми ещё раз')) return true;
+        activeTab = 'overview'; // прогресс скана — на Обзоре
+        startScan().catch((e) => console.error('[Thread] скан:', e));
+    }
+    if (act === 'scanstop') stopScan();
+    if (act === 'scanresume') resumeScan().catch((e) => console.error('[Thread] скан:', e));
+    if (act === 'scanundo' && confirmTwice(btn, 'scanundo', 'Вернуть всё как до скана? Нажми ещё раз')) await undoScan();
+    if (act === 'scanok') await dismissScan();
+    renderAll();
+    return true;
 }
 
 /** Поле названия главы: Enter или уход фокуса — сохранить, Esc — отменить. */
@@ -199,7 +251,7 @@ function renderAll() {
 
     const refresh = overlayEl.querySelector('.thr-refresh');
     refresh.classList.toggle('thr-spin', busy);
-    refresh.disabled = busy || !currentChatId();
+    refresh.disabled = busy || !currentChatId() || scanBlocks(getState());
 
     const st = getState();
     if (activeTab === 'settings') {
@@ -224,6 +276,10 @@ function emptyHtml(text) {
 /** Судья читает свежий кусок истории и ставит отметки. */
 async function evaluate({ quiet = false } = {}) {
     if (busy) return;
+    if (scanBlocks(getState())) {
+        if (!quiet) showNote('Сейчас идёт скан истории — дождись его или отмени.', { force: true });
+        return;
+    }
     const chatId = currentChatId();
     if (!chatId) {
         if (!quiet) showNote('Открой чат — судье нечего читать', { force: true });
@@ -313,7 +369,7 @@ let lastSync = null; // последняя сверка, которая что-�
 
 async function syncWithChat(source = '') {
     const st = getState();
-    if (!st) return 0;
+    if (!st || scanRunning()) return 0;
     const { undone, why } = rollbackCheck(st);
     const redone = redoCheck(st); // вернулся прежний вариант ответа — возвращаем и его отметки
     // Границы глав «из будущего» (удалили сообщения, ушли веткой назад) — убираем молча
@@ -372,7 +428,7 @@ function lastIsBot() {
 async function checkAuto() {
     if (busy) return;
     const st = getState();
-    if (!st) return;
+    if (!st || scanBlocks(st)) return;
     await syncWithChat('авто');
     if (!getSettings().auto || !judgeNeeded()) return;
     const total = ctx().chat.length;
@@ -461,6 +517,17 @@ function settingsHtml() {
             </div>
 
             <div class="thr-set-group">
+                <div class="thr-label"><b>Скан всей истории</b></div>
+                <div class="thr-note">Судья читает чат с самого начала пачками и ставит отметки по всей истории. Скрытые сообщения тоже читаются, память судьи на время скана выключена — сводки знают будущее. Главы ставятся сами, каждые 25 сообщений. Скан начинает с чистого листа, но его можно отменить.</div>
+                <div class="thr-set-row">
+                    <label class="thr-label" for="thr_scansize">Сообщений в пачке: <b id="thr_scansize_val"></b></label>
+                    <input id="thr_scansize" type="range" min="30" max="80" step="5" class="thr-range" />
+                </div>
+                <div class="thr-note" id="thr_scan_estimate"></div>
+                <button id="thr_scan_start" class="menu_button thr-wide-btn" type="button" data-act="scanstart"><i class="fa-solid fa-book-open"></i><span>Прочитать всю историю</span></button>
+            </div>
+
+            <div class="thr-set-group">
                 <details class="thr-details">
                     <summary>Последний ответ судьи</summary>
                     <div class="thr-note" id="thr_last_meta"></div>
@@ -529,6 +596,11 @@ function bindSettings() {
         saveSettings();
     });
     $('thr_reset').addEventListener('click', onResetClick);
+    $('thr_scansize').addEventListener('input', (e) => {
+        getSettings().scanSize = clampInt(e.target.value, 30, 80, 50);
+        saveSettings();
+        syncScanEstimate();
+    });
 }
 
 function syncSettings() {
@@ -542,6 +614,8 @@ function syncSettings() {
     $('thr_depth').value = String(s.histDepth);
     $('thr_repstart').value = s.repStart;
     $('thr_memchat').checked = Boolean(s.memChat);
+    $('thr_scansize').value = s.scanSize;
+    syncScanEstimate();
     $('thr_reset').disabled = !currentChatId();
 
     if (!lastJudge) {
@@ -566,6 +640,17 @@ function syncSettings() {
     $('thr_last_sync').textContent = lastSync
         ? `Последняя сверка с чатом: ${lastSync.at.toLocaleTimeString('ru-RU')} · ${lastSync.source} · отменено оценок: ${lastSync.undone}, возвращено: ${lastSync.redone}`
         : 'С момента загрузки страницы откатов не было.';
+}
+
+function syncScanEstimate() {
+    if (!overlayEl) return;
+    const size = clampInt(getSettings().scanSize, 30, 80, 50);
+    const total = Array.isArray(ctx().chat) ? ctx().chat.length : 0;
+    overlayEl.querySelector('#thr_scansize_val').textContent = String(size);
+    overlayEl.querySelector('#thr_scan_estimate').textContent = currentChatId() && total
+        ? `В этом чате ${total} сообщений — это ${scanBatches(total, size).length} запросов к судье.`
+        : 'Открой чат, чтобы прочитать его историю.';
+    overlayEl.querySelector('#thr_scan_start').disabled = !currentChatId() || !total || scanBlocks(getState());
 }
 
 function disarmReset() {
@@ -675,6 +760,14 @@ jQuery(async () => {
     addDiceButton();
     setDiceChangeHandler(() => { refreshDiceButton(); if (isOpen()) renderAll(); });
     setAvatarChangeHandler(() => { if (isOpen()) renderAll(); });
+    setScanHooks({
+        render: () => { if (isOpen()) renderAll(); },
+        showNote,
+        showAch,
+        explain: explainError,
+        onError: (message) => toastr.error(`${explainError(message)} Скан на паузе — продолжишь с той же пачки.<br><small>${escapeHtml(message)}</small>`,
+            'Thread: скан остановлен', { escapeHtml: false, timeOut: 12000 }),
+    });
 
     const { eventSource, event_types } = ctx();
     eventSource.on(event_types.CHAT_CHANGED, onChatChanged);
