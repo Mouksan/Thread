@@ -39,16 +39,15 @@ function unlockCounter(st, slug, note) {
     return a;
 }
 
-async function doRoll() {
+/**
+ * Бросок с записью в ленту и «зарядкой» для бота. Общий для окошка 🎲 и моста window.Thread.check.
+ * arm = false — просто узнать исход, боту ничего не уходит.
+ */
+export async function rollCheck(skillName, dcKey = 'mid', { arm = true } = {}) {
     const st = getState();
-    if (ui.rolling || !ui.skill || !st) return;
-    ui.rolling = true;
-    render();
-    await new Promise((r) => setTimeout(r, 650)); // «кубик катится»
-    const r = roll(st, ui.skill, ui.dc);
-    st.check = { ...r, armed: true, target: null, note: checkNoteText(r) };
-    ui.last = r;
-    ui.rolling = false;
+    if (!st) return null;
+    const r = roll(st, skillName, DC[dcKey] ? dcKey : 'mid');
+    if (arm) st.check = { ...r, armed: true, target: null, note: checkNoteText(r) };
     pushLog(st, {
         kind: 'CHECK', target: r.skill, delta: 0,
         note: `${RES_LABELS[r.res]}: ${r.d} → ${r.total} против ${r.dc}`,
@@ -59,8 +58,19 @@ async function doRoll() {
     if (r.res === 'fumble') unlocked.push(unlockCounter(st, 'crit-fail', r.skill));
     await saveState();
     showAch(unlocked.filter(Boolean));
-    render();
     onChange();
+    return { ...r, label: RES_LABELS[r.res], note: checkNoteText(r), armed: arm };
+}
+
+async function doRoll() {
+    const st = getState();
+    if (ui.rolling || !ui.skill || !st) return;
+    ui.rolling = true;
+    render();
+    await new Promise((r) => setTimeout(r, 650)); // «кубик катится»
+    ui.last = await rollCheck(ui.skill, ui.dc);
+    ui.rolling = false;
+    render();
 }
 
 async function cancelRoll() {

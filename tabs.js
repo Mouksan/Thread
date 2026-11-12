@@ -10,6 +10,7 @@ import { achIcon, RARITY_LABELS, JUDGE_ACH, COUNTER_ACH, GENRE_ACH, ACH_HINTS } 
 import { GENRES, genreOf, setGenre, restoreBaseSkills, removeSkill, addSkill, baseSkillNames } from './genres.js';
 import { avatarFor } from './avatars.js';
 import { renameCharacter, removeCharacter, unignore } from './chars.js';
+import { lifeweaverFacts } from './lifeweaver.js';
 import { scanCardHtml, scanBlocks, scanBatches } from './scan.js';
 
 const RARITY_ORDER = { legendary: 0, rare: 1, common: 2 };
@@ -311,9 +312,13 @@ export function flagsHtml(st) {
             ${x('qrm', `data-k="${escapeHtml(k)}"`)}
         </div>`).join('')}` : '';
 
+    const lw = lifeweaverFacts();
+    const lwRows = lw.length ? `
+        <div class="thr-sub">Из Lifeweaver — обновляются сами</div>
+        <div class="thr-chips">${lw.map((f) => `<span class="thr-chip thr-lw-chip">${f.kind === 'children' ? '👶' : f.kind === 'clutch' ? '🥚' : '🌱'} ${escapeHtml(f.text)}</span>`).join('')}</div>` : '';
     return `
         <div class="thr-sec">Метки сюжета</div>
-        ${flagRows}${goneRows}
+        ${flagRows}${goneRows}${lwRows}
         <div class="thr-sec">Обещания и цели</div>
         ${qRows}${doneRows}`;
 }

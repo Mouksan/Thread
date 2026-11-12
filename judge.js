@@ -173,6 +173,9 @@ export function userPrompt(st, cx, tx, scan = null) {
     if (cx.bg) parts.push('=== Story background ===\n' + cx.bg);
     parts.push(stateBlock(st));
     if (cx.memory) parts.push('=== Story memory (condensed past, for context only) ===\n' + cx.memory + '\n(This is background about what happened earlier. Use it to judge the TRUE current levels, but report only corrections from the tracked values above — never re-report old events as new.)');
+    // Thread: Lifeweaver и события от других расширений — как факты сюжета
+    if (cx.lw?.length) parts.push('=== Current facts tracked by Lifeweaver (treat as true; do not mark them) ===\n' + cx.lw.map((x) => `- ${x}`).join('\n'));
+    if (cx.reports?.length) parts.push("=== Also happened in the story (reported by the player's other story tools — treat as real story events) ===\n" + cx.reports.map((x) => `- ${x}`).join('\n'));
     // Thread: дата из Hearthtide идёт судье как справка
     if (cx.date) parts.push('=== Current in-story date ===\n' + cx.date);
     const header = scan

@@ -9,6 +9,7 @@
 // Этап 5б: главы вручную, аватарки (транслит + ручной выбор), автостарт в новом чате.
 // Этап 6: скан всей истории пачками (scan.js).
 // Этап 7: жанры и набор навыков (genres.js), режимы разделов вкл / скрыть / выкл.
+// Этап 8: Lifeweaver только на чтение (lifeweaver.js) и мост window.Thread для других расширений (bridge.js).
 
 import {
     ctx, getSettings, saveSettings, escapeHtml, clampInt, currentChatId,
@@ -36,6 +37,8 @@ import { checkMilestones } from './milestones.js';
 import {
     reconcileSkills, genrePromptLines, setGenre, restoreBaseSkills, addSkill, removeSkill, suggestSkills,
 } from './genres.js';
+import { lifeweaverFacts, lifeweaverRule, lifeweaverInstalled } from './lifeweaver.js';
+import { installBridge, reportLines } from './bridge.js';
 
 // Перехватчик генерации — имя прописано в manifest.json (generate_interceptor)
 globalThis.threadInterceptor = interceptor;
@@ -377,8 +380,9 @@ async function evaluate({ quiet = false } = {}) {
         const st = getState();
         reconcileSkills(st);
         const date = hearthtideDate(depth);
-        const cx = { bg: background(), memory: await loreMemory(), date };
-        const system = systemPrompt({ hasDate: Boolean(date), extra: genrePromptLines(st, modOn('ach')) });
+        const reports = reportLines(st);
+        const cx = { bg: background(), memory: await loreMemory(), date, lw: lifeweaverFacts().map((f) => f.textEn), reports };
+        const system = systemPrompt({ hasDate: Boolean(date), extra: [...genrePromptLines(st, modOn('ach')), ...lifeweaverRule()] });
         const user = userPrompt(st, cx, transcript(depth));
         const anchor = anchorAt(total - 1); // что именно прочитал судья
         lastJudge = { at: new Date(), mode: quiet ? 'авто' : 'вручную', chars: system.length + user.length, system, user, raw: '', error: '', result: '' };
@@ -410,6 +414,7 @@ async function evaluate({ quiet = false } = {}) {
         const applied = rows.filter((r) => applyRow(now, r, env));
         now.rerollWait = null;
         now.count = total;
+        if (Array.isArray(now.reports)) now.reports = now.reports.slice(reports.length); // учтённые события уходят, пришедшие во время оценки — остаются
         now.touched = true;
         if (!now.firstAt) now.firstAt = Date.now();
         const counters = checkMilestones(now);
@@ -565,6 +570,8 @@ function settingsHtml() {
                     </select>
                 </div>
                 <div class="thr-note">Сообщения, карточка и персона уходят судье целиком, без обрезки. Больше сообщений — лучше контекст, но запрос дольше и дороже.</div>
+                <label class="checkbox_label" for="thr_lw"><input id="thr_lw" type="checkbox" /> Связь с Lifeweaver</label>
+                <div class="thr-note" id="thr_lw_note"></div>
                 <label class="checkbox_label" for="thr_memchat"><input id="thr_memchat" type="checkbox" /> Память судьи: лорбук этого чата</label>
                 <div class="thr-note">Судья дочитывает лорбук, привязанный к чату (например, сводки MemoryBook), чтобы знать прошлое истории. Боту через Thread он не уходит.</div>
             </div>
@@ -656,6 +663,7 @@ function bindSettings() {
     bindCheck('thr_influence', 'influence');
     bindCheck('thr_toasts', 'toasts');
     bindCheck('thr_memchat', 'memChat');
+    bindCheck('thr_lw', 'lifeweaver');
     $('thr_toastmode').addEventListener('change', (e) => {
         getSettings().toastMode = ['click', '5', '15'].includes(e.target.value) ? e.target.value : 'click';
         saveSettings();
@@ -703,6 +711,10 @@ function syncSettings() {
     $('thr_depth').value = String(s.histDepth);
     $('thr_repstart').value = s.repStart;
     $('thr_memchat').checked = Boolean(s.memChat);
+    $('thr_lw').checked = Boolean(s.lifeweaver);
+    $('thr_lw_note').textContent = lifeweaverInstalled()
+        ? 'Lifeweaver найден. Судья видит беременности, кладки и детей как факты сюжета и не дублирует их метками; во вкладке «Метки» они видны отдельным блоком. Скрытая беременность остаётся скрытой. Сам Lifeweaver не меняется.'
+        : 'Lifeweaver не установлен — связь включится сама, когда он появится.';
     $('thr_scansize').value = s.scanSize;
     syncModes();
     syncScanEstimate();
@@ -868,6 +880,7 @@ function onRolledBackMaybe() {
 
 jQuery(async () => {
     getSettings();
+    installBridge();
     addSettingsDrawer();
     addWandButton();
     addDiceButton();

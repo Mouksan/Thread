@@ -7,6 +7,7 @@
 import { ctx, getSettings, getState, saveState, currentChatId, emptyState, clampInt, modOn } from './store.js';
 import { systemPrompt, userPrompt, parse, parseDate, applyRow, SCAN_LIMITS } from './judge.js';
 import { reconcileSkills, genrePromptLines } from './genres.js';
+import { lifeweaverRule } from './lifeweaver.js';
 import { background, transcriptRange, hearthtideDateRange, characterNames, personaName } from './context.js';
 import { requestJudge } from './connection.js';
 import { snapTake } from './state.js';
@@ -125,7 +126,7 @@ async function runScan() {
             reconcileSkills(st);
 
             const date = hearthtideDateRange(from, to);
-            const system = systemPrompt({ hasDate: Boolean(date), scan: true, extra: genrePromptLines(st, modOn('ach')) });
+            const system = systemPrompt({ hasDate: Boolean(date), scan: true, extra: [...genrePromptLines(st, modOn('ach')), ...lifeweaverRule()] });
             const user = userPrompt(st, { bg: background(), memory: '', date }, transcriptRange(from, to), { from, to, total: sc.total });
             let raw;
             try {

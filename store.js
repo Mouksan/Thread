@@ -29,6 +29,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
     repStart: 50,        // с чего начинается репутация
     memChat: false,      // память судьи: лорбук, привязанный к чату
     scanSize: 50,        // скан истории: сообщений в пачке (30–80)
+    lifeweaver: true,    // учитывать Lifeweaver (только чтение; работает, только если он стоит)
     modes: DEFAULT_MODES,
 });
 
@@ -118,6 +119,7 @@ export function emptyState() {
         chapters: [{ start: 0, title: '' }], // границы глав (номер сообщения, с которого глава начинается)
         avatars: {},      // ручные аватарки: имя → путь к картинке | 'none'
         aliases: {},      // прежнее имя (строчными) → нынешнее: переименования в «Отношениях»
+        reports: [],      // события от других расширений через window.Thread.report — до следующей оценки
         ignored: [],      // убранные персонажи (строчными) — судья их больше не записывает
         inj: { last: '', cnt: 0, sentFor: null }, // что и когда уходило боту в записке // после отката ждём нового сообщения, а не оцениваем каждый свайп
     };
@@ -137,8 +139,18 @@ export function getState() {
     return st;
 }
 
+let updateTimer = null;
+/** Другим расширениям: отметки изменились (детали — window.Thread.summary()). */
+function notifyUpdate() {
+    clearTimeout(updateTimer);
+    updateTimer = setTimeout(() => {
+        try { window.dispatchEvent(new CustomEvent('thread:update')); } catch { /* не страшно */ }
+    }, 150);
+}
+
 export async function saveState() {
     await ctx().saveMetadata();
+    notifyUpdate();
 }
 
 export function saveStateDebounced() {
