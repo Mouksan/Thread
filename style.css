@@ -725,8 +725,66 @@
 /* ---------- Этап 5: вкладки ---------- */
 
 .thr-chapter {
-    font-size: 0.9em;
-    opacity: 0.75;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 10px;
+}
+
+.thr-ch-title {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+}
+
+.thr-ch-title .thr-x {
+    opacity: 0.4;
+}
+
+.thr-ch-input {
+    flex: 1;
+    margin: 0;
+}
+
+.thr-ch-meta {
+    font-size: 0.85em;
+    opacity: 0.65;
+}
+
+.thr-ch-close {
+    padding: 4px 12px;
+    color: inherit;
+    font: inherit;
+    font-size: 0.85em;
+    background: transparent;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 999px;
+    cursor: pointer;
+    opacity: 0.8;
+}
+
+.thr-ch-close:hover {
+    opacity: 1;
+}
+
+.thr-ch-close.thr-armed {
+    border-color: var(--SmartThemeQuoteColor);
+    background: color-mix(in srgb, var(--SmartThemeQuoteColor) 18%, transparent);
+    opacity: 1;
+}
+
+.thr-ch-divider {
+    margin: 6px 0 2px;
+    font-size: 0.78em;
+    text-align: center;
+    opacity: 0.55;
+}
+
+.thr-ch-divider::before,
+.thr-ch-divider::after {
+    content: ' — ';
 }
 
 .thr-card-foot {
@@ -950,4 +1008,106 @@
 
 .thr-ach.thr-sealed .thr-ach-body {
     font-size: 0.88em;
+}
+
+/* Аватарка — кнопка выбора */
+
+.thr-ava-btn {
+    flex: none;
+    padding: 0;
+    background: none;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.thr-ava-btn:hover .thr-ava {
+    outline: 2px solid var(--SmartThemeQuoteColor);
+    outline-offset: 1px;
+}
+
+span.thr-ava {
+    display: flex;
+}
+
+.thr-ava-menu {
+    position: fixed;
+    z-index: 10003;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 300px;
+    padding: 12px;
+    color: var(--SmartThemeBodyColor);
+    background: color-mix(in srgb, var(--SmartThemeBlurTintColor) 96%, transparent);
+    backdrop-filter: blur(var(--SmartThemeBlurStrength, 12px));
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.thr-ava-menu-title {
+    font-weight: 700;
+}
+
+.thr-ava-pick {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.thr-ava-pick button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 4px;
+    color: inherit;
+    font: inherit;
+    font-size: 0.72em;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.thr-ava-pick button:hover,
+.thr-ava-pick button.thr-on {
+    border-color: var(--SmartThemeQuoteColor);
+}
+
+.thr-ava-pick img {
+    width: 52px;
+    height: 52px;
+    object-fit: cover;
+    border-radius: 50%;
+}
+
+.thr-ava-pick small {
+    font-size: 0.85em;
+    opacity: 0.55;
+}
+
+.thr-ava-pick span {
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.thr-ava-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.thr-ava-actions .menu_button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    width: fit-content;
+    margin: 0;
+    white-space: nowrap;
 }

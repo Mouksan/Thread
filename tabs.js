@@ -3,10 +3,11 @@
 
 import { ctx, getSettings, clampInt, escapeHtml, modeOf, repNow, repLevel, relLevel } from './store.js';
 import {
-    skillList, skillVal, relVal, signed, activeFlags, openQuests, achTitle, sameName, LINK_LABELS,
+    skillList, skillVal, relVal, signed, activeFlags, achTitle, LINK_LABELS,
 } from './judge.js';
 import { markLineHtml } from './toasts.js';
 import { achIcon, RARITY_LABELS, JUDGE_ACH, COUNTER_ACH, ACH_HINTS } from './ach.js';
+import { avatarFor } from './avatars.js';
 
 const RARITY_ORDER = { legendary: 0, rare: 1, common: 2 };
 
@@ -39,8 +40,41 @@ function spark(hist, min, max, mid = null) {
     return `<svg class="thr-spark" viewBox="0 0 100 34" preserveAspectRatio="none" aria-hidden="true">${zero}<polyline points="${line}" /></svg>`;
 }
 
-function chapterNum(total) {
-    return Math.max(1, Math.floor(total / 25) + 1);
+// ---------- Главы ----------
+// Граница главы — номер сообщения, с которого она начинается. Закрываются вручную на Обзоре.
+
+const ui = { editChapter: false, closeArmed: false, closeTimer: null };
+
+export function chapters(st) {
+    if (!Array.isArray(st.chapters) || !st.chapters.length) st.chapters = [{ start: 0, title: '' }];
+    return st.chapters;
+}
+
+/** Убрать границы «из будущего» (после удаления сообщений или ветки назад). true — что-то убрано. */
+export function pruneChapters(st, total) {
+    const list = chapters(st);
+    const keep = list.filter((ch, i) => i === 0 || ch.start <= total);
+    if (keep.length === list.length) return false;
+    st.chapters = keep;
+    return true;
+}
+
+/** Номер главы (с нуля), к которой относится запись, сделанная по прочтении `count` сообщений. */
+function chapterIndexFor(st, count) {
+    const list = chapters(st);
+    let idx = 0;
+    for (let i = 1; i < list.length; i++) if (list[i].start < count) idx = i;
+    return idx;
+}
+
+function chapterLabel(st, idx) {
+    const ch = chapters(st)[idx];
+    return `Глава ${idx + 1}${ch?.title ? ` · ${ch.title}` : ''}`;
+}
+
+function disarmClose() {
+    ui.closeArmed = false;
+    clearTimeout(ui.closeTimer);
 }
 
 // ---------- Обзор ----------
@@ -57,9 +91,23 @@ export function overviewHtml(st, busy) {
                 : left ? `следующая оценка через ${left} сообщ.` : 'следующая оценка — после ответа бота';
         progress = `оценено до сообщения ${st.count} из ${total} · ${next}`;
     }
-    const head = [`Глава ${chapterNum(total)}`];
-    if (st.sdate?.text) head.push(`📅 ${escapeHtml(st.sdate.text)}`);
-    head.push(`${total} ✉`);
+    const list = chapters(st);
+    const cur = list.length - 1;
+    const meta = [];
+    if (st.sdate?.text) meta.push(`📅 ${escapeHtml(st.sdate.text)}`);
+    meta.push(`${total} ✉`);
+    const titleHtml = ui.editChapter
+        ? `<input class="text_pole thr-ch-input" type="text" maxlength="60" placeholder="Название главы (необязательно)" value="${escapeHtml(list[cur].title || '')}" />`
+        : `<b>Глава ${cur + 1}</b>${list[cur].title ? ` · ${escapeHtml(list[cur].title)}` : ''}
+           <button class="thr-x" type="button" data-act="chedit" title="Назвать главу" aria-label="Назвать главу"><i class="fa-solid fa-pen"></i></button>`;
+    const chapterHtml = `
+        <div class="thr-chapter">
+            <div class="thr-ch-title">${titleHtml}</div>
+            <div class="thr-ch-meta">${meta.join(' · ')}</div>
+            <button class="thr-ch-close ${ui.closeArmed ? 'thr-armed' : ''}" type="button" data-act="chclose">
+                ${ui.closeArmed ? `Закрыть главу ${cur + 1}? Нажми ещё раз` : '<i class="fa-solid fa-bookmark"></i> Закрыть главу'}
+            </button>
+        </div>`;
 
     const repCard = modeOf('rep') === 'on' ? `
         <div class="thr-card">
@@ -70,35 +118,34 @@ export function overviewHtml(st, busy) {
         </div>` : '';
 
     const feed = st.log.filter((e) => e.count <= total).slice(-5).reverse();
-    const feedHtml = feed.length ? `
-        <div class="thr-sec">Последние события</div>
-        <div class="thr-feed">${feed.map((e) => `
+    // Если события из разных глав — подписываем, где какая
+    const groups = new Set(feed.map((e) => chapterIndexFor(st, e.count)));
+    let lastGroup = null;
+    const feedRows = feed.map((e) => {
+        const g = chapterIndexFor(st, e.count);
+        const divider = groups.size > 1 && g !== lastGroup ? `<div class="thr-ch-divider">${escapeHtml(chapterLabel(st, g))}</div>` : '';
+        lastGroup = g;
+        return `${divider}
             <div class="thr-feed-row">
                 <div class="thr-feed-main">${markLineHtml(e)}${e.sd ? `<div class="thr-note">${escapeHtml(e.sd)}</div>` : ''}</div>
                 <button class="thr-x" type="button" data-act="dellog" data-id="${escapeHtml(e.id || '')}" title="Убрать запись" aria-label="Убрать запись"><i class="fa-solid fa-xmark"></i></button>
-            </div>`).join('')}
-        </div>` : '';
+            </div>`;
+    }).join('');
+    const feedHtml = feed.length ? `<div class="thr-sec">Последние события</div><div class="thr-feed">${feedRows}</div>` : '';
+    const firstHint = total <= 10
+        ? 'Судья ещё не смотрел эту историю. Он сам заглянет после первого ответа бота на твоё сообщение — или нажми ⟳ в шапке прямо сейчас.'
+        : 'Судья ещё не смотрел эту историю. Нажми ⟳ в шапке — он поставит первые отметки по последним сообщениям. Для длинной истории сначала поставь в настройках глубину 80 и включи память судьи.';
 
     return `
-        <div class="thr-chapter">${head.join(' · ')}</div>
+        ${chapterHtml}
         ${busy ? '<div class="thr-hint">Судья листает страницы…</div>' : ''}
         ${repCard}
-        ${st.touched ? '' : '<div class="thr-hint">Судья ещё не смотрел эту историю. Нажми ⟳ в шапке — он поставит первые отметки по последним сообщениям. Для длинной истории сначала поставь в настройках глубину 80 и включи память судьи.</div>'}
+        ${st.touched ? '' : `<div class="thr-hint">${firstHint}</div>`}
         ${feedHtml}
         <div class="thr-note thr-progress">${escapeHtml(progress)}</div>`;
 }
 
 // ---------- Отношения ----------
-
-function avatarFor(name) {
-    const c = ctx();
-    const ch = (c.characters || []).find((x) => x?.name && sameName(x.name, name));
-    if (!ch?.avatar) return '';
-    try {
-        if (typeof c.getThumbnailUrl === 'function') return c.getThumbnailUrl('avatar', ch.avatar);
-    } catch { /* ниже — запасной путь */ }
-    return `/thumbnail?type=avatar&file=${encodeURIComponent(ch.avatar)}`;
-}
 
 function initials(name) {
     return escapeHtml(String(name || '?').trim().charAt(0).toUpperCase() || '?');
@@ -119,11 +166,13 @@ export function relsHtml(st) {
     if (!names.length) return emptyHtml('Пока никого — судья запишет персонажей, когда посмотрит историю.');
     const cards = names.map((n) => {
         const v = relVal(st, n);
-        const av = avatarFor(n);
+        const av = avatarFor(st, n);
         return `
             <div class="thr-card thr-rel">
                 <div class="thr-rel-head">
-                    ${av ? `<img class="thr-ava" src="${escapeHtml(av)}" alt="" loading="lazy" />` : `<div class="thr-ava thr-ava-empty">${initials(n)}</div>`}
+                    <button class="thr-ava-btn" type="button" data-act="ava" data-name="${escapeHtml(n)}" title="Сменить аватарку" aria-label="Сменить аватарку">
+                        ${av ? `<img class="thr-ava" src="${escapeHtml(av)}" alt="" loading="lazy" />` : `<span class="thr-ava thr-ava-empty">${initials(n)}</span>`}
+                    </button>
                     <div class="thr-rel-name"><b>${escapeHtml(n)}</b><span class="thr-note">${escapeHtml(relLevel(v))}</span></div>
                     <b class="thr-rel-val ${tone(v)}">${signed(v)}</b>
                 </div>
@@ -248,6 +297,24 @@ export function achHtml(st) {
 /** Обработка кнопок. Возвращает true, если данные чата изменились (нужно сохранить). */
 export function handleTabAction(st, btn) {
     const act = btn.dataset.act;
+    if (act === 'chedit') {
+        ui.editChapter = true;
+        return 'render';
+    }
+    if (act === 'chclose') {
+        if (!ui.closeArmed) {
+            ui.closeArmed = true;
+            ui.closeTimer = setTimeout(() => { ui.closeArmed = false; btn.isConnected && btn.dispatchEvent(new CustomEvent('thr-rerender', { bubbles: true })); }, 4000);
+            return 'render';
+        }
+        disarmClose();
+        const total = totalNow();
+        pruneChapters(st, total);
+        const list = chapters(st);
+        if (list[list.length - 1].start >= total) return 'render'; // в текущей главе ещё нет сообщений
+        list.push({ start: total, title: '' });
+        return true;
+    }
     if (act === 'dellog') {
         const i = st.log.findIndex((e) => e && e.id === btn.dataset.id);
         if (i < 0) return false;
@@ -292,4 +359,16 @@ export function handleTabAction(st, btn) {
         return true;
     }
     return false;
+}
+
+/** Сохранить название текущей главы (из поля ввода на Обзоре). */
+export function saveChapterTitle(st, value) {
+    const list = chapters(st);
+    list[list.length - 1].title = String(value || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+    ui.editChapter = false;
+}
+
+export function cancelChapterEdit() {
+    ui.editChapter = false;
+    disarmClose();
 }

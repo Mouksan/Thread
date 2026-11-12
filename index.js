@@ -6,6 +6,7 @@
 //   Правки: сноски в своём стиле, «память вариантов» ответа при свайпах туда-обратно.
 // Этап 4: скрытая записка боту и проверка навыка 🎲 у поля ввода.
 // Этап 5: вкладки целиком — графики, аватары, ✕ у записей, ✓ у обещаний, витрина ачивок, ачивки-счётчики.
+// Этап 5б: главы вручную, аватарки (транслит + ручной выбор), автостарт в новом чате.
 
 import {
     ctx, getSettings, saveSettings, escapeHtml, clampInt, currentChatId,
@@ -21,7 +22,10 @@ import { requestJudge } from './connection.js';
 import { snapTake, rollbackCheck, redoCheck } from './state.js';
 import { interceptor, noteText, lastInjected, clearPrompts } from './inject.js';
 import { addDiceButton, refreshDiceButton, closeDice, setDiceChangeHandler, openDice } from './dice.js';
-import { overviewHtml, relsHtml, skillsHtml, flagsHtml, achHtml, handleTabAction } from './tabs.js';
+import {
+    overviewHtml, relsHtml, skillsHtml, flagsHtml, achHtml, handleTabAction, pruneChapters, saveChapterTitle, cancelChapterEdit,
+} from './tabs.js';
+import { openAvatarMenu, setAvatarChangeHandler } from './avatars.js';
 import { checkMilestones } from './milestones.js';
 
 // Перехватчик генерации — имя прописано в manifest.json (generate_interceptor)
@@ -77,7 +81,11 @@ function buildWindow() {
     });
     overlay.querySelector('.thr-close').addEventListener('click', closeWindow);
     overlay.querySelector('.thr-refresh').addEventListener('click', onRefreshClick);
-    overlay.querySelector('.thr-body').addEventListener('click', onBodyClick);
+    const body = overlay.querySelector('.thr-body');
+    body.addEventListener('click', onBodyClick);
+    body.addEventListener('keydown', onBodyKey);
+    body.addEventListener('focusout', onBodyBlur);
+    body.addEventListener('thr-rerender', () => renderAll());
     overlay.querySelector('.thr-tabs').addEventListener('click', (e) => {
         const btn = e.target.closest('.thr-tab');
         if (btn) switchTab(btn.dataset.tab);
@@ -95,12 +103,44 @@ async function onBodyClick(e) {
         openDice();
         return;
     }
+    if (btn.dataset.act === 'ava') {
+        openAvatarMenu(btn, btn.dataset.name);
+        return;
+    }
     const st = getState();
     if (!st) return;
-    if (handleTabAction(st, btn)) {
+    const result = handleTabAction(st, btn);
+    if (result === 'render') {
+        renderAll();
+        overlayEl.querySelector('.thr-ch-input')?.focus();
+    } else if (result) {
         await saveState();
         renderAll();
     }
+}
+
+/** Поле названия главы: Enter или уход фокуса — сохранить, Esc — отменить. */
+function onBodyKey(e) {
+    if (!e.target.classList?.contains('thr-ch-input')) return;
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        e.target.blur();
+    } else if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        e.target.dataset.cancel = '1';
+        cancelChapterEdit();
+        renderAll();
+    }
+}
+
+async function onBodyBlur(e) {
+    if (!e.target.classList?.contains('thr-ch-input') || e.target.dataset.cancel) return;
+    const st = getState();
+    if (!st) return;
+    saveChapterTitle(st, e.target.value);
+    await saveState();
+    renderAll();
 }
 
 function isOpen() {
@@ -109,6 +149,7 @@ function isOpen() {
 
 function onKeyDown(e) {
     if (e.key !== 'Escape' || !isOpen()) return;
+    if (e.target?.classList?.contains('thr-ch-input')) return; // Esc в поле главы — только отмена ввода
     // Если поверх открыт попап таверны — пусть он сам обработает Esc
     if (document.querySelector('dialog[open]')) return;
     closeWindow();
@@ -133,6 +174,7 @@ function closeWindow() {
 
 function switchTab(tab) {
     activeTab = tab;
+    cancelChapterEdit();
     disarmReset();
     renderAll();
 }
@@ -274,6 +316,12 @@ async function syncWithChat(source = '') {
     if (!st) return 0;
     const { undone, why } = rollbackCheck(st);
     const redone = redoCheck(st); // вернулся прежний вариант ответа — возвращаем и его отметки
+    // Границы глав «из будущего» (удалили сообщения, ушли веткой назад) — убираем молча
+    if (pruneChapters(st, Array.isArray(ctx().chat) ? ctx().chat.length : 0) && !undone && !redone) {
+        await saveState();
+        if (isOpen()) renderAll();
+        return 0;
+    }
     if (!undone && !redone) return 0;
 
     // Сначала заметка и отрисовка, потом сохранение: сохранение во время генерации может подождать,
@@ -320,14 +368,21 @@ function lastIsBot() {
     return false;
 }
 
-/** Авто: раз в N сообщений после ответа бота. Первую оценку в чате всегда запускает человек. */
+/** Авто: раз в N сообщений после ответа бота. В новом чате — первая оценка после первого ответа бота. */
 async function checkAuto() {
     if (busy) return;
     const st = getState();
     if (!st) return;
     await syncWithChat('авто');
-    if (!getSettings().auto || !st.touched || !judgeNeeded()) return;
+    if (!getSettings().auto || !judgeNeeded()) return;
     const total = ctx().chat.length;
+    if (!st.touched) {
+        // Автостарт только в новом чате: первая оценка — после первого ответа бота на сообщение игрока.
+        // Старые длинные чаты сами не стартуют: по одному хвосту там оценивать бессмысленно.
+        const hasUser = ctx().chat.some((m) => m?.is_user && !m.is_system);
+        if (total <= 10 && hasUser && lastIsBot()) evaluate({ quiet: true });
+        return;
+    }
     if (st.count > total) st.count = total;
     if (st.rerollWait != null) { // после отката ждём нового сообщения, а не оцениваем каждый свайп
         if (total <= st.rerollWait) return;
@@ -367,7 +422,7 @@ function settingsHtml() {
 
             <div class="thr-set-group">
                 <label class="checkbox_label" for="thr_auto"><input id="thr_auto" type="checkbox" /> Судья следит сам</label>
-                <div class="thr-note">Первую оценку в каждом чате запускаешь ты кнопкой ⟳, дальше судья смотрит сам после ответов бота.</div>
+                <div class="thr-note">В новом чате первая оценка — после первого ответа бота на твоё сообщение. В старых чатах первую оценку запускаешь ты кнопкой ⟳.</div>
                 <div class="thr-set-row">
                     <label class="thr-label" for="thr_every">Как часто: раз в N сообщений</label>
                     <input id="thr_every" class="text_pole thr-num" type="number" min="2" max="50" step="1" />
@@ -619,6 +674,7 @@ jQuery(async () => {
     addWandButton();
     addDiceButton();
     setDiceChangeHandler(() => { refreshDiceButton(); if (isOpen()) renderAll(); });
+    setAvatarChangeHandler(() => { if (isOpen()) renderAll(); });
 
     const { eventSource, event_types } = ctx();
     eventSource.on(event_types.CHAT_CHANGED, onChatChanged);
