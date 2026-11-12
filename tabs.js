@@ -9,6 +9,7 @@ import { markLineHtml } from './toasts.js';
 import { achIcon, RARITY_LABELS, JUDGE_ACH, COUNTER_ACH, GENRE_ACH, ACH_HINTS } from './ach.js';
 import { GENRES, genreOf, setGenre, restoreBaseSkills, removeSkill, addSkill, baseSkillNames } from './genres.js';
 import { avatarFor } from './avatars.js';
+import { renameCharacter, removeCharacter, unignore } from './chars.js';
 import { scanCardHtml, scanBlocks, scanBatches } from './scan.js';
 
 const RARITY_ORDER = { legendary: 0, rare: 1, common: 2 };
@@ -45,7 +46,7 @@ function spark(hist, min, max, mid = null) {
 // ---------- Главы ----------
 // Граница главы — номер сообщения, с которого она начинается. Закрываются вручную на Обзоре.
 
-const ui = { editChapter: false, closeArmed: false, closeTimer: null };
+const ui = { editChapter: false, closeArmed: false, closeTimer: null, editName: '', rmArmed: '', rmTimer: null };
 
 export function chapters(st) {
     if (!Array.isArray(st.chapters) || !st.chapters.length) st.chapters = [{ start: 0, title: '' }];
@@ -177,7 +178,12 @@ export function relsHtml(st) {
                     <button class="thr-ava-btn" type="button" data-act="ava" data-name="${escapeHtml(n)}" title="Сменить аватарку" aria-label="Сменить аватарку">
                         ${av ? `<img class="thr-ava" src="${escapeHtml(av)}" alt="" loading="lazy" />` : `<span class="thr-ava thr-ava-empty">${initials(n)}</span>`}
                     </button>
-                    <div class="thr-rel-name"><b>${escapeHtml(n)}</b><span class="thr-note">${escapeHtml(relLevel(v))}</span></div>
+                    <div class="thr-rel-name">${ui.editName === n
+                        ? `<input class="text_pole thr-name-input" type="text" maxlength="40" value="${escapeHtml(n)}" data-from="${escapeHtml(n)}" />`
+                        : `<span class="thr-rel-title"><b>${escapeHtml(n)}</b>
+                            <button class="thr-x" type="button" data-act="nameedit" data-name="${escapeHtml(n)}" title="Своё имя" aria-label="Своё имя"><i class="fa-solid fa-pen"></i></button>
+                            <button class="thr-x ${ui.rmArmed === n ? 'thr-armed' : ''}" type="button" data-act="rmchar" data-name="${escapeHtml(n)}" title="${ui.rmArmed === n ? 'Нажми ещё раз — убрать насовсем' : 'Убрать персонажа'}" aria-label="Убрать персонажа"><i class="fa-solid ${ui.rmArmed === n ? 'fa-trash' : 'fa-xmark'}"></i></button></span>`}
+                        <span class="thr-note">${ui.rmArmed === n ? 'Нажми 🗑 ещё раз: персонаж уйдёт вместе с графиком, досье и связями, и судья больше не будет его записывать' : escapeHtml(relLevel(v))}</span></div>
                     <b class="thr-rel-val ${tone(v)}">${signed(v)}</b>
                 </div>
                 <div class="thr-bar thr-bar-mid"><i style="${v >= 0 ? `left:50%;width:${v / 2}%` : `right:50%;width:${-v / 2}%`}"></i></div>
@@ -196,7 +202,11 @@ export function relsHtml(st) {
                 <b class="${tone(p.v || 0)}">${signed(p.v || 0)}</b>
             </div>`;
     }).join('')}` : '';
-    return cards + links;
+    const ignored = Array.isArray(st.ignored) ? st.ignored : [];
+    const gone = ignored.length ? `
+        <div class="thr-sub">Убранные — судья их не записывает: ${ignored.map((n) => `
+            <button class="thr-chip-btn" type="button" data-act="unignore" data-name="${escapeHtml(n)}" title="Вернуть: судья снова сможет записывать">↺ ${escapeHtml(n)}</button>`).join(' ')}</div>` : '';
+    return cards + links + gone;
 }
 
 // ---------- Навыки ----------
@@ -414,6 +424,23 @@ export function handleTabAction(st, btn) {
         skillUi.list = act === 'addsug' ? (skillUi.list || []).filter((x) => x !== btn.dataset.name) : null;
         return changed || 'render';
     }
+    if (act === 'nameedit') {
+        ui.editName = btn.dataset.name;
+        return 'render';
+    }
+    if (act === 'rmchar') {
+        const name = btn.dataset.name;
+        if (ui.rmArmed !== name) {
+            ui.rmArmed = name;
+            clearTimeout(ui.rmTimer);
+            ui.rmTimer = setTimeout(() => { ui.rmArmed = ''; btn.isConnected && btn.dispatchEvent(new CustomEvent('thr-rerender', { bubbles: true })); }, 5000);
+            return 'render';
+        }
+        ui.rmArmed = '';
+        clearTimeout(ui.rmTimer);
+        return removeCharacter(st, name);
+    }
+    if (act === 'unignore') return unignore(st, btn.dataset.name);
     if (act === 'rmfact') {
         const list = st.facts?.[btn.dataset.name];
         const i = parseInt(btn.dataset.i, 10);
@@ -435,4 +462,15 @@ export function saveChapterTitle(st, value) {
 export function cancelChapterEdit() {
     ui.editChapter = false;
     disarmClose();
+}
+
+/** Сохранить своё имя персонажа (из поля ввода в «Отношениях»). Возвращает текст ошибки или ''. */
+export function saveCharName(st, from, value) {
+    ui.editName = '';
+    return renameCharacter(st, from, value);
+}
+
+export function cancelNameEdit() {
+    ui.editName = '';
+    ui.rmArmed = '';
 }

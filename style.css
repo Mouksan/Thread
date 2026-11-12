@@ -1217,3 +1217,34 @@ span.thr-ava {
     grid-template-columns: repeat(3, 1fr);
     width: 190px;
 }
+
+/* Своё имя и «убрать персонажа» */
+
+.thr-rel-title {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+}
+
+.thr-rel-title .thr-x {
+    width: 22px;
+    height: 22px;
+    opacity: 0;
+}
+
+.thr-rel:hover .thr-rel-title .thr-x,
+.thr-rel-title .thr-x:focus-visible,
+.thr-rel-title .thr-x.thr-armed {
+    opacity: 0.7;
+}
+
+.thr-rel-title .thr-x.thr-armed {
+    color: #d9778b;
+    opacity: 1;
+}
+
+.thr-name-input {
+    margin: 0;
+    padding: 2px 6px;
+}

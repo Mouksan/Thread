@@ -4,6 +4,7 @@
 
 import { modOn, repNow, repLevel, relLevel } from './store.js';
 import { JUDGE_ACH, ACH_TITLES, achRarityOf } from './ach.js';
+import { resolveName, aliasesOf, isIgnored } from './chars.js';
 
 export const MAX_LOG = 100;
 export const MAX_SKILLS = 12;
@@ -148,7 +149,9 @@ function stateBlock(st) {
     const rep = repNow(st);
     if (modOn('rep')) L.push(`=== Reputation now (0–100) ===\n${rep} (${repLevel(rep)})`);
     const rels = Object.keys(st.rels);
-    if (modOn('rels')) L.push('=== Relationships now (−100…+100) ===\n' + (rels.length ? rels.map((n) => `${n} — ${signed(relVal(st, n))} (${relLevel(relVal(st, n))})`).join('\n') : '(none)'));
+    // Thread: прежние имена (до переименования) — чтобы судья узнал персонажа и писал новое имя
+    const also = (n) => { const a = aliasesOf(st, n); return a.length ? ` (also: ${a.join(', ')} — write "${n}")` : ''; };
+    if (modOn('rels')) L.push('=== Relationships now (−100…+100) ===\n' + (rels.length ? rels.map((n) => `${n}${also(n)} — ${signed(relVal(st, n))} (${relLevel(relVal(st, n))})`).join('\n') : '(none)'));
     const fl = activeFlags(st);
     if (modOn('flags')) L.push('=== Marks now ===\n' + (fl.length ? fl.map((x) => x.f.name || x.key).join('\n') : '(none)'));
     let ft = '';
@@ -358,6 +361,8 @@ export function applyRow(st, r, env) {
     // Thread: персону игрока в «отношения к игроку» не записываем
     const known = Object.keys(st.rels).concat(env.chars || []);
     const isPlayer = (n) => Boolean(env.persona) && sameName(env.persona, n);
+    // Thread: имя от судьи → под каким именем персонаж живёт у нас (переименования из «Отношений»)
+    const nameOf = (n) => resolveName(st, matchName(resolveName(st, n), known));
 
     if (r.kind === 'SKILL') {
         const name = matchName(r.target, skillList(st).map((e) => e.name));
@@ -381,7 +386,8 @@ export function applyRow(st, r, env) {
     }
     if (r.kind === 'REL') {
         if (isPlayer(r.target)) return false;
-        const nm = matchName(r.target, known);
+        const nm = nameOf(r.target);
+        if (isIgnored(st, nm)) return false;
         if (st.rels[nm] == null) {
             if (Object.keys(st.rels).length >= MAX_RELS) return false;
             st.rels[nm] = 0;
@@ -401,8 +407,9 @@ export function applyRow(st, r, env) {
     }
     if (r.kind === 'LINK') {
         if (isPlayer(r.a) || isPlayer(r.b)) return false; // связи — между персонажами, не с игроком
-        const na = matchName(r.a, known);
-        const nb = matchName(r.b, known);
+        const na = nameOf(r.a);
+        const nb = nameOf(r.b);
+        if (isIgnored(st, na) || isIgnored(st, nb) || na.toLowerCase() === nb.toLowerCase()) return false;
         for (const n of [na, nb]) if (st.rels[n] == null && Object.keys(st.rels).length < MAX_RELS) st.rels[n] = 0;
         if (st.rels[na] == null || st.rels[nb] == null) return false;
         const k1 = na.toLowerCase();
@@ -425,7 +432,8 @@ export function applyRow(st, r, env) {
     }
     if (r.kind === 'FACT') {
         if (isPlayer(r.target)) return false; // факты — о персонажах, не об игроке
-        const fnm = matchName(r.target, known);
+        const fnm = nameOf(r.target);
+        if (isIgnored(st, fnm)) return false;
         if (!st.facts[fnm] && Object.keys(st.facts).length >= 20) return false;
         const fa = st.facts[fnm] || [];
         const low = r.note.toLowerCase();

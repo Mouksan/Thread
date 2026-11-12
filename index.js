@@ -26,6 +26,7 @@ import { interceptor, noteText, lastInjected, clearPrompts } from './inject.js';
 import { addDiceButton, refreshDiceButton, closeDice, setDiceChangeHandler, openDice } from './dice.js';
 import {
     overviewHtml, relsHtml, skillsHtml, flagsHtml, achHtml, handleTabAction, pruneChapters, saveChapterTitle, cancelChapterEdit, skillUi,
+    saveCharName, cancelNameEdit,
 } from './tabs.js';
 import { openAvatarMenu, setAvatarChangeHandler } from './avatars.js';
 import {
@@ -129,7 +130,9 @@ async function onBodyClick(e) {
     const result = handleTabAction(st, btn);
     if (result === 'render') {
         renderAll();
-        overlayEl.querySelector('.thr-ch-input')?.focus();
+        const input = overlayEl.querySelector('.thr-ch-input, .thr-name-input');
+        input?.focus();
+        input?.select?.();
     } else if (result) {
         await saveState();
         renderAll();
@@ -217,6 +220,19 @@ async function onScanAction(btn) {
 
 /** Поле названия главы: Enter или уход фокуса — сохранить, Esc — отменить. */
 function onBodyKey(e) {
+    if (e.target.classList?.contains('thr-name-input')) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            e.target.blur();
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            e.stopPropagation();
+            e.target.dataset.cancel = '1';
+            cancelNameEdit();
+            renderAll();
+        }
+        return;
+    }
     if (e.target.classList?.contains('thr-skill-input') && e.key === 'Enter') {
         e.preventDefault();
         addOwnSkill();
@@ -236,6 +252,15 @@ function onBodyKey(e) {
 }
 
 async function onBodyBlur(e) {
+    if (e.target.classList?.contains('thr-name-input') && !e.target.dataset.cancel) {
+        const st = getState();
+        if (!st) return;
+        const error = saveCharName(st, e.target.dataset.from, e.target.value);
+        if (error) showNote(error, { force: true });
+        else await saveState();
+        renderAll();
+        return;
+    }
     if (!e.target.classList?.contains('thr-ch-input') || e.target.dataset.cancel) return;
     const st = getState();
     if (!st) return;
@@ -250,7 +275,7 @@ function isOpen() {
 
 function onKeyDown(e) {
     if (e.key !== 'Escape' || !isOpen()) return;
-    if (e.target?.classList?.contains('thr-ch-input')) return; // Esc в поле главы — только отмена ввода
+    if (e.target?.classList?.contains('thr-ch-input') || e.target?.classList?.contains('thr-name-input')) return; // Esc в поле — только отмена ввода
     // Если поверх открыт попап таверны — пусть он сам обработает Esc
     if (document.querySelector('dialog[open]')) return;
     closeWindow();
@@ -276,6 +301,7 @@ function closeWindow() {
 function switchTab(tab) {
     activeTab = tab;
     cancelChapterEdit();
+    cancelNameEdit();
     disarmReset();
     renderAll();
 }
