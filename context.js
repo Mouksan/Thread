@@ -81,6 +81,32 @@ export function personaName() {
     return String(ctx().name1 || '').trim();
 }
 
+// Аватар текущей персоны: в контексте таверны его нет, берём из модуля персон (живая привязка)
+let personasMod = null;
+import('../../../personas.js').then((m) => { personasMod = m; }).catch(() => { /* нет модуля — ниже запасной путь */ });
+
+/** Файл аватара текущей персоны ('' — не нашли). */
+export function personaAvatarId() {
+    const fromMod = String(personasMod?.user_avatar || '').trim();
+    if (fromMod) return fromMod;
+    return String(document.querySelector('#user_avatar_block .avatar-container.selected')?.dataset?.avatarId || '').trim();
+}
+
+/** Ключ, под которым помним своё имя персоны: по аватару, а без него — по имени. */
+export function personaKey() {
+    const a = personaAvatarId();
+    if (a) return `ava:${a}`;
+    const n = personaName();
+    return n ? `name:${n}` : '';
+}
+
+/** Как показывать юзера в Thread: своё имя, если задано, иначе имя персоны. Модели уходит personaName(). */
+export function personaDisplayName() {
+    const k = personaKey();
+    const own = k ? String(getSettings().meNames?.[k] || '').trim() : '';
+    return own || personaName();
+}
+
 /** Справка о мире для судьи. */
 export function background() {
     const c = ctx();

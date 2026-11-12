@@ -4,6 +4,7 @@
 // Чтение слотов Frame — как у Memento (image.js: getFrameRefContainer / getFrameCast).
 
 import { ctx, getState, saveState, escapeHtml } from './store.js';
+import { personaAvatarId } from './context.js';
 
 const UPLOAD_FOLDER = 'Thread';
 const AVA_SIZE = 256;
@@ -64,6 +65,17 @@ function cardThumb(avatar) {
         if (typeof c.getThumbnailUrl === 'function') return c.getThumbnailUrl('avatar', avatar);
     } catch { /* ниже — запасной путь */ }
     return `/thumbnail?type=avatar&file=${encodeURIComponent(avatar)}`;
+}
+
+/** Картинка текущей персоны юзера ('' — нет). */
+export function personaThumb() {
+    const id = personaAvatarId();
+    if (!id) return '';
+    const c = ctx();
+    try {
+        if (typeof c.getThumbnailUrl === 'function') return c.getThumbnailUrl('persona', id);
+    } catch { /* ниже — запасной путь */ }
+    return `/thumbnail?type=persona&file=${encodeURIComponent(id)}`;
 }
 
 function chatCharacters() {

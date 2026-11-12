@@ -3,7 +3,7 @@
 // а подсказки боту — отдельной галочкой «Влиять на сюжет», тоже выключенной.
 
 import { ctx, getSettings, getState, saveState, modeOf } from './store.js';
-import { background, transcript, characterNames, personaName } from './context.js';
+import { background, transcript, characterNames, personaName, personaDisplayName } from './context.js';
 import { requestJudge } from './connection.js';
 import { namesMatch } from './avatars.js';
 import { AZ_TAROT, TAROT_EN, AZ_NUMS, AZ_MOON, RETRO_T0, RETRO_DATA } from './astro-data.js';
@@ -167,7 +167,8 @@ export function astroDay(st) {
  * (карточный «Renzo» и судейский «Ренцо» — один человек). [{ key, name, isMe, isBot }]
  */
 export function astroPeople(st) {
-    const out = [{ key: ME, name: personaName() || 'Ты', isMe: true, isBot: false }];
+    // name — для показа (своё имя персоны), real — для модели (имя персоны в таверне)
+    const out = [{ key: ME, name: personaDisplayName() || 'Ты', real: personaName(), isMe: true, isBot: false }];
     const relNames = Object.keys(st.rels || {});
     const cards = characterNames();
     for (const n of relNames) out.push({ key: n, name: n, isMe: false, isBot: cards.some((c) => namesMatch(c, n)) });

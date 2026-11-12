@@ -1,14 +1,15 @@
 // Thread — вкладка «Астро»: список людей, карточка персонажа (знак, MBTI, день), влияние на сюжет.
 // Раскладка и тексты — по Storyline (astroPageHtml / astroDetailHtml / astroFxHtml).
 
-import { getState, saveState, escapeHtml, getSettings } from './store.js';
+import { getState, saveState, escapeHtml, getSettings, saveSettings } from './store.js';
+import { personaName, personaKey } from './context.js';
 import {
     astroState, astroPeople, astroDay, zodiacOf, daily, retroAt, retroRange, astroCalc, astroSet,
     syncHearthtide, ageOn, birthdayToday,
     SIGN_ICON, SIGN_RU, MBTI_TYPES, ME,
 } from './astro.js';
 import { ZODIAC_DATA, MBTI_DATA, AZINFO } from './astro-data.js';
-import { avatarFor } from './avatars.js';
+import { avatarFor, personaThumb } from './avatars.js';
 
 const MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
 
@@ -34,14 +35,14 @@ function birthdayHtml(st, a) {
     return `<div class="thr-bday ${today ? 'thr-bday-today' : ''}">🎂 ${today ? '<b>Сегодня день рождения!</b> ' : 'День рождения: '}${+m[1]} ${MONTHS_GEN[+m[2] - 1]}${m[3] ? ` ${m[3]}` : ''}${age != null ? ` · ${today ? 'исполняется' : 'сейчас'} ${age} ${yearsWord(age)}` : ''}${src ? ` <span class="thr-note">· ${src}</span>` : ''}</div>`;
 }
 
-export const astroUi = { sel: null, form: false, busy: '', err: '', info: '' };
+export const astroUi = { sel: null, form: false, busy: '', err: '', info: '', meEdit: false };
 
 function initials(name) {
     return escapeHtml(String(name || '?').trim().charAt(0).toUpperCase() || '?');
 }
 
 function ava(st, p, cls = 'thr-ava') {
-    const url = p.isMe ? '' : avatarFor(st, p.name);
+    const url = p.isMe ? personaThumb() : avatarFor(st, p.name);
     return url ? `<img class="${cls}" src="${escapeHtml(url)}" alt="" loading="lazy" />` : `<span class="${cls} thr-ava-empty">${p.isMe ? '🧵' : initials(p.name)}</span>`;
 }
 
@@ -122,7 +123,9 @@ function detailHtml(st, p) {
         <div class="thr-astro-head">
             ${ava(st, p, 'thr-ava thr-ava-lg')}
             <div>
-                <div class="thr-astro-name"><b>${escapeHtml(p.name)}</b>${p.isMe ? ' <span class="thr-note">· ты</span>' : ''}${p.isBot ? ' <span class="thr-note">· карточка</span>' : ''}</div>
+                <div class="thr-astro-name">${p.isMe && astroUi.meEdit
+                    ? `<input class="text_pole thr-name-input thr-me-input" type="text" maxlength="40" value="${escapeHtml(p.name)}" placeholder="${escapeHtml(personaName())}" />`
+                    : `<b>${escapeHtml(p.name)}</b>${p.isMe ? ` <button class="thr-x" type="button" data-act="azme" title="Своё имя" aria-label="Своё имя"><i class="fa-solid fa-pen"></i></button> <span class="thr-note">· ты</span>` : ''}${p.isBot ? ' <span class="thr-note">· карточка</span>' : ''}`}</div>
                 <div>${a?.d ? birthdayHtml(st, a) : 'не указано'} <button class="thr-x" type="button" data-act="azedit" title="Изменить" aria-label="Изменить"><i class="fa-solid fa-pen"></i></button></div>
                 ${z ? `<div>${SIGN_ICON[z]} <b>${SIGN_RU[z]}</b> <span class="thr-note">(${escapeHtml(zd.rng)})</span></div>` : ''}
                 ${a?.mbti ? `<div><b>${escapeHtml(a.mbti)}</b>${md ? ` — ${escapeHtml(md.t)}` : ''}</div>` : ''}
@@ -198,8 +201,9 @@ export function astroHtml(st) {
 /** Возвращает true, если данные изменились; 'render' — только перерисовать; Promise для запросов к модели. */
 export function handleAstroAction(st, btn, root, rerender) {
     const act = btn.dataset.act;
-    if (act === 'azopen') { Object.assign(astroUi, { sel: btn.dataset.key, form: false, err: '', info: '' }); return 'render'; }
-    if (act === 'azback') { Object.assign(astroUi, { sel: null, form: false, err: '', info: '' }); return 'render'; }
+    if (act === 'azopen') { Object.assign(astroUi, { sel: btn.dataset.key, form: false, err: '', info: '', meEdit: false }); return 'render'; }
+    if (act === 'azback') { Object.assign(astroUi, { sel: null, form: false, err: '', info: '', meEdit: false }); return 'render'; }
+    if (act === 'azme') { astroUi.meEdit = true; return 'render'; }
     if (act === 'azedit') { astroUi.form = !astroUi.form; astroUi.err = ''; return 'render'; }
     if (act === 'azcancel') { astroUi.form = false; astroUi.err = ''; return 'render'; }
     if (act === 'azinfo') { astroUi.info = astroUi.info === btn.dataset.k ? '' : btn.dataset.k; return 'render'; }
@@ -223,7 +227,7 @@ export function handleAstroAction(st, btn, root, rerender) {
         rerender();
         (async () => {
             try {
-                for (const p of targets) await astroCalc(p.key, p.name);
+                for (const p of targets) await astroCalc(p.key, p.real || p.name);
             } catch (error) {
                 astroUi.err = `Не получилось: ${String(error?.message || error).slice(0, 160)}`;
                 console.error('[Thread] астро:', error);
@@ -247,6 +251,23 @@ export async function handleAstroInput(el) {
     else return false;
     await saveState();
     return true;
+}
+
+/** Своё имя персоны (во всех чатах с этой персоной). Пусто или как в таверне — вернуть имя персоны. */
+export function saveMeName(value) {
+    astroUi.meEdit = false;
+    const k = personaKey();
+    if (!k) return;
+    const v = String(value || '').replace(/\s+/g, ' ').trim().slice(0, 40);
+    const s = getSettings();
+    if (!s.meNames || typeof s.meNames !== 'object') s.meNames = {};
+    if (!v || v === personaName()) delete s.meNames[k];
+    else s.meNames[k] = v;
+    saveSettings();
+}
+
+export function cancelMeEdit() {
+    astroUi.meEdit = false;
 }
 
 export { ME };

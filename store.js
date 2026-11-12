@@ -30,6 +30,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
     memChat: false,      // память судьи: лорбук, привязанный к чату
     scanSize: 50,        // скан истории: сообщений в пачке (30–80)
     lifeweaver: true,    // учитывать Lifeweaver (только чтение; работает, только если он стоит)
+    meNames: {},         // своё имя персоны для показа в Thread: ключ персоны → имя
     modes: DEFAULT_MODES,
 });
 

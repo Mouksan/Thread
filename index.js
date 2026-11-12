@@ -40,7 +40,7 @@ import {
 } from './genres.js';
 import { lifeweaverFacts, lifeweaverRule, lifeweaverInstalled } from './lifeweaver.js';
 import { installBridge, reportLines } from './bridge.js';
-import { astroHtml, handleAstroAction, handleAstroInput, astroUi } from './astro-tab.js';
+import { astroHtml, handleAstroAction, handleAstroInput, astroUi, saveMeName, cancelMeEdit } from './astro-tab.js';
 import { syncHearthtide } from './astro.js';
 
 // Перехватчик генерации — имя прописано в manifest.json (generate_interceptor)
@@ -237,7 +237,8 @@ function onBodyKey(e) {
             e.preventDefault();
             e.stopPropagation();
             e.target.dataset.cancel = '1';
-            cancelNameEdit();
+            if (e.target.classList.contains('thr-me-input')) cancelMeEdit();
+            else cancelNameEdit();
             renderAll();
         }
         return;
@@ -261,6 +262,11 @@ function onBodyKey(e) {
 }
 
 async function onBodyBlur(e) {
+    if (e.target.classList?.contains('thr-me-input')) {
+        if (!e.target.dataset.cancel) saveMeName(e.target.value);
+        renderAll();
+        return;
+    }
     if (e.target.classList?.contains('thr-name-input') && !e.target.dataset.cancel) {
         const st = getState();
         if (!st) return;
