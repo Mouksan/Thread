@@ -575,3 +575,148 @@
 .thr-pre:empty {
     display: none;
 }
+
+/* 🎲 Иконка у поля ввода */
+
+#thr-dice-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.15em;
+    cursor: pointer;
+    opacity: 0.75;
+    transition: opacity 0.15s, color 0.15s;
+}
+
+#thr-dice-btn:hover {
+    opacity: 1;
+}
+
+/* Бросок заряжен — иконка подсвечена, пока бот не получил исход */
+#thr-dice-btn.thr-armed {
+    color: var(--SmartThemeQuoteColor);
+    opacity: 1;
+    text-shadow: 0 0 8px color-mix(in srgb, var(--SmartThemeQuoteColor) 60%, transparent);
+}
+
+/* 🎲 Окошко проверки — над полем ввода */
+
+#thr-dice-pop {
+    position: fixed;
+    z-index: 10000;
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    width: min(360px, calc(100vw - 16px));
+    padding: 12px 14px;
+    color: var(--SmartThemeBodyColor);
+    background: color-mix(in srgb, var(--SmartThemeBlurTintColor) 94%, transparent);
+    backdrop-filter: blur(var(--SmartThemeBlurStrength, 12px));
+    -webkit-backdrop-filter: blur(var(--SmartThemeBlurStrength, 12px));
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+#thr-dice-pop.thr-open {
+    display: flex;
+}
+
+.thr-pop-title {
+    font-weight: 700;
+}
+
+.thr-pop-title i {
+    margin-right: 4px;
+    color: var(--SmartThemeQuoteColor);
+}
+
+.thr-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.thr-chip-btn {
+    padding: 4px 10px;
+    color: inherit;
+    font: inherit;
+    font-size: 0.9em;
+    background: transparent;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 999px;
+    cursor: pointer;
+}
+
+.thr-chip-btn i {
+    font-style: normal;
+    opacity: 0.6;
+}
+
+.thr-chip-btn.thr-on,
+.thr-seg button.thr-on {
+    border-color: var(--SmartThemeQuoteColor);
+    background: color-mix(in srgb, var(--SmartThemeQuoteColor) 20%, transparent);
+}
+
+.thr-seg {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+}
+
+.thr-seg button {
+    padding: 5px 4px;
+    color: inherit;
+    font: inherit;
+    font-size: 0.85em;
+    background: transparent;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+#thr-dice-pop .menu_button.thr-wide {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    margin: 0;
+    padding: 8px 12px;
+    border-radius: 10px;
+}
+
+.thr-roll-btn {
+    font-weight: 600;
+}
+
+.thr-roll-spin {
+    animation: thr-spin 0.6s linear infinite;
+}
+
+.thr-roll {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.thr-die {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    font: 700 22px Georgia, serif;
+    border: 2px solid;
+    border-radius: 12px;
+}
+
+.thr-die.thr-good {
+    color: #6fbf8b;
+}
+
+.thr-die.thr-bad {
+    color: #d9778b;
+}

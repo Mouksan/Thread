@@ -4,6 +4,7 @@
 // Этап 2: судья руками — кнопка ⟳, сбор контекста, разбор ответа, сноски, «последний ответ судьи».
 // Этап 3: судья следит сам (раз в N сообщений) и откатывает отметки при свайпах, перегенерации и удалении.
 //   Правки: сноски в своём стиле, «память вариантов» ответа при свайпах туда-обратно.
+// Этап 4: скрытая записка боту и проверка навыка 🎲 у поля ввода.
 
 import {
     ctx, getSettings, saveSettings, escapeHtml, clampInt, currentChatId,
@@ -18,6 +19,11 @@ import {
 } from './context.js';
 import { requestJudge } from './connection.js';
 import { snapTake, rollbackCheck, redoCheck } from './state.js';
+import { interceptor, noteText, lastInjected, clearPrompts } from './inject.js';
+import { addDiceButton, refreshDiceButton, closeDice, setDiceChangeHandler } from './dice.js';
+
+// Перехватчик генерации — имя прописано в manifest.json (generate_interceptor)
+globalThis.threadInterceptor = interceptor;
 import { showMarks, showAch, showNote, markLineHtml } from './toasts.js';
 import { achIcon, RARITY_LABELS } from './ach.js';
 
@@ -321,6 +327,7 @@ async function evaluate({ quiet = false } = {}) {
     } finally {
         busy = false;
         renderAll();
+        refreshDiceButton();
     }
 }
 
@@ -478,6 +485,11 @@ function settingsHtml() {
                     <div class="thr-note" id="thr_last_sync"></div>
                     <pre class="thr-pre" id="thr_last_raw"></pre>
                     <details class="thr-details">
+                        <summary>Записка боту</summary>
+                        <div class="thr-note" id="thr_note_meta"></div>
+                        <pre class="thr-pre" id="thr_note_text"></pre>
+                    </details>
+                    <details class="thr-details">
                         <summary>Что ушло судье</summary>
                         <pre class="thr-pre" id="thr_last_prompt"></pre>
                     </details>
@@ -561,6 +573,14 @@ function syncSettings() {
         $('thr_last_raw').textContent = lastJudge.raw || '(пусто)';
         $('thr_last_prompt').textContent = `${lastJudge.system}\n\n────────\n\n${lastJudge.user}`;
     }
+    const st = getState();
+    const note = noteText(st);
+    $('thr_note_meta').textContent = !getSettings().influence ? 'Влияние выключено — бот записку не получает.'
+        : !st?.touched ? 'До первой оценки боту сообщать нечего.'
+            : lastInjected
+                ? `Последняя генерация (${lastInjected.at.toLocaleTimeString('ru-RU')}, ${lastInjected.type}): записка ${lastInjected.note ? 'ушла' : 'не понадобилась — не менялась'}${lastInjected.check ? ', бросок ушёл' : ''}. Ниже — какой она будет сейчас:`
+                : 'С момента загрузки страницы генераций не было. Ниже — какой записка будет сейчас:';
+    $('thr_note_text').textContent = note;
     $('thr_last_sync').textContent = lastSync
         ? `Последняя сверка с чатом: ${lastSync.at.toLocaleTimeString('ru-RU')} · ${lastSync.source} · отменено оценок: ${lastSync.undone}, возвращено: ${lastSync.redone}`
         : 'С момента загрузки страницы откатов не было.';
@@ -583,9 +603,12 @@ async function onResetClick(e) {
     }
     disarmReset();
     delete ctx().chatMetadata[META_KEY];
+    clearPrompts();
+    closeDice();
     getState();
     await saveState();
     showNote('Отметки этого чата стёрты', { force: true });
+    refreshDiceButton();
     renderAll();
 }
 
@@ -634,12 +657,16 @@ function onChatChanged() {
     clearTimeout(autoTimer);
     clearInterval(watchTimer);
     disarmReset();
+    closeDice();
+    clearPrompts(); // записка прошлого чата не должна уйти в новый
+    refreshDiceButton();
     // Ветка от середины чата приносит отметки «из будущего» — возвращаем их к точке ветвления
     syncWithChat('смена чата').catch((e) => console.error('[Thread] откат:', e));
     if (isOpen()) renderAll();
 }
 
 function onMessagesChanged() {
+    refreshDiceButton();
     if (isOpen() && activeTab === 'overview' && !busy) renderAll();
 }
 
@@ -652,6 +679,8 @@ jQuery(async () => {
     getSettings();
     addSettingsDrawer();
     addWandButton();
+    addDiceButton();
+    setDiceChangeHandler(() => { refreshDiceButton(); if (isOpen()) renderAll(); });
 
     const { eventSource, event_types } = ctx();
     eventSource.on(event_types.CHAT_CHANGED, onChatChanged);
