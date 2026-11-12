@@ -5,14 +5,14 @@
 // Этап 3: судья следит сам (раз в N сообщений) и откатывает отметки при свайпах, перегенерации и удалении.
 //   Правки: сноски в своём стиле, «память вариантов» ответа при свайпах туда-обратно.
 // Этап 4: скрытая записка боту и проверка навыка 🎲 у поля ввода.
+// Этап 5: вкладки целиком — графики, аватары, ✕ у записей, ✓ у обещаний, витрина ачивок, ачивки-счётчики.
 
 import {
     ctx, getSettings, saveSettings, escapeHtml, clampInt, currentChatId,
-    getState, saveState, META_KEY, repNow, repLevel, relLevel, modeOf, HIST_DEPTHS, TOAST_TITLE,
+    getState, saveState, META_KEY, modeOf, HIST_DEPTHS,
 } from './store.js';
 import {
     judgeNeeded, systemPrompt, userPrompt, parse, parseDate, applyRow, ensureSkills,
-    skillList, skillVal, relVal, signed, activeFlags, openQuests, achTitle, LINK_LABELS,
 } from './judge.js';
 import {
     background, transcript, hearthtideDate, loreMemory, anchorAt, anchorHolds, characterNames, personaName,
@@ -20,12 +20,13 @@ import {
 import { requestJudge } from './connection.js';
 import { snapTake, rollbackCheck, redoCheck } from './state.js';
 import { interceptor, noteText, lastInjected, clearPrompts } from './inject.js';
-import { addDiceButton, refreshDiceButton, closeDice, setDiceChangeHandler } from './dice.js';
+import { addDiceButton, refreshDiceButton, closeDice, setDiceChangeHandler, openDice } from './dice.js';
+import { overviewHtml, relsHtml, skillsHtml, flagsHtml, achHtml, handleTabAction } from './tabs.js';
+import { checkMilestones } from './milestones.js';
 
 // Перехватчик генерации — имя прописано в manifest.json (generate_interceptor)
 globalThis.threadInterceptor = interceptor;
-import { showMarks, showAch, showNote, markLineHtml } from './toasts.js';
-import { achIcon, RARITY_LABELS } from './ach.js';
+import { showMarks, showAch, showNote } from './toasts.js';
 
 const TABS = [
     { id: 'overview', label: 'Обзор' },
@@ -76,6 +77,7 @@ function buildWindow() {
     });
     overlay.querySelector('.thr-close').addEventListener('click', closeWindow);
     overlay.querySelector('.thr-refresh').addEventListener('click', onRefreshClick);
+    overlay.querySelector('.thr-body').addEventListener('click', onBodyClick);
     overlay.querySelector('.thr-tabs').addEventListener('click', (e) => {
         const btn = e.target.closest('.thr-tab');
         if (btn) switchTab(btn.dataset.tab);
@@ -83,6 +85,22 @@ function buildWindow() {
     overlayEl = overlay;
     bindSettings();
     return overlay;
+}
+
+/** Кнопки внутри вкладок: ✕ у записей, ✓ у обещаний, вернуть метку, проверка навыка. */
+async function onBodyClick(e) {
+    const btn = e.target.closest('[data-act]');
+    if (!btn || !overlayEl.querySelector('.thr-body').contains(btn)) return;
+    if (btn.dataset.act === 'dice') {
+        openDice();
+        return;
+    }
+    const st = getState();
+    if (!st) return;
+    if (handleTabAction(st, btn)) {
+        await saveState();
+        renderAll();
+    }
 }
 
 function isOpen() {
@@ -151,104 +169,12 @@ function renderAll() {
         pane.innerHTML = emptyHtml('Открой чат — у каждой истории свои отметки.');
         return;
     }
-    const html = { overview: overviewHtml, rels: relsHtml, skills: skillsHtml, flags: flagsHtml, ach: achHtml }[activeTab];
+    const html = { overview: (x) => overviewHtml(x, busy), rels: relsHtml, skills: skillsHtml, flags: flagsHtml, ach: achHtml }[activeTab];
     pane.innerHTML = html ? html(st) : emptyHtml('Астро появится позже.');
 }
 
 function emptyHtml(text) {
     return `<div class="thr-empty">${escapeHtml(text)}</div>`;
-}
-
-function barCard(title, value, max, note) {
-    const width = Math.max(0, Math.min(100, (value / max) * 100));
-    return `
-        <div class="thr-card">
-            <div class="thr-card-head"><span>${escapeHtml(title)}</span><b>${value}<small> / ${max}</small></b></div>
-            <div class="thr-bar"><i style="width:${width}%"></i></div>
-            ${note ? `<div class="thr-note">${escapeHtml(note)}</div>` : ''}
-        </div>`;
-}
-
-function overviewHtml(st) {
-    const rep = repNow(st);
-    const total = Array.isArray(ctx().chat) ? ctx().chat.length : 0;
-    let progress = `сообщений в чате: ${total} · оценок ещё не было`;
-    if (st.touched) {
-        const settings = getSettings();
-        const left = Math.max(0, clampInt(settings.everyN, 2, 50, 3) - (total - st.count));
-        const next = !settings.auto ? 'авто выключено'
-            : st.rerollWait != null && total <= st.rerollWait ? 'после отката жду новое сообщение'
-                : left ? `следующая оценка через ${left} сообщ.` : 'следующая оценка — после ответа бота';
-        progress = `оценено до сообщения ${st.count} из ${total} · ${next}`;
-    }
-    const feed = st.log.filter((e) => e.count <= total).slice(-5).reverse();
-    return `
-        ${busy ? '<div class="thr-hint">Судья листает страницы…</div>' : ''}
-        ${st.sdate?.text ? `<div class="thr-date"><i class="fa-regular fa-calendar"></i> ${escapeHtml(st.sdate.text)}</div>` : ''}
-        ${modeOf('rep') === 'on' ? barCard('Репутация', rep, 100, repLevel(rep)) : ''}
-        ${st.touched ? '' : '<div class="thr-hint">Судья ещё не смотрел эту историю. Нажми ⟳ в шапке — он поставит первые отметки по последним сообщениям. Для длинной истории сначала поставь в настройках глубину 80 и включи память судьи.</div>'}
-        ${feed.length ? `<div class="thr-sec">Последние события</div><div class="thr-feed">${feed.map(feedLineHtml).join('')}</div>` : ''}
-        <div class="thr-note thr-progress">${escapeHtml(progress)}</div>`;
-}
-
-function feedLineHtml(e) {
-    const date = e.sd ? `<div class="thr-note">${escapeHtml(e.sd)}</div>` : '';
-    return `<div class="thr-feed-row">${markLineHtml(e)}${date}</div>`;
-}
-
-function relsHtml(st) {
-    const names = Object.keys(st.rels).sort((a, b) => relVal(st, b) - relVal(st, a));
-    if (!names.length) return emptyHtml('Пока никого — судья запишет персонажей, когда посмотрит историю.');
-    const cards = names.map((n) => {
-        const v = relVal(st, n);
-        return `
-            <div class="thr-card">
-                <div class="thr-card-head"><span>${escapeHtml(n)}</span><b class="${v > 0 ? 'thr-up' : v < 0 ? 'thr-down' : ''}">${signed(v)}</b></div>
-                <div class="thr-bar thr-bar-mid"><i style="${v >= 0 ? `left:50%;width:${v / 2}%` : `right:50%;width:${-v / 2}%`}"></i></div>
-                <div class="thr-note">${escapeHtml(relLevel(v))}</div>
-            </div>`;
-    }).join('');
-    const pairs = Object.values(st.pairs).filter(Boolean).sort((a, b) => Math.abs(b.v || 0) - Math.abs(a.v || 0));
-    const links = pairs.length ? `<div class="thr-sec">Связи между персонажами</div>${pairs.map((p) => {
-        const types = Object.keys(p.types || {}).map((t) => LINK_LABELS[t] || t).join(', ');
-        return `
-            <div class="thr-row">
-                <div><b>${escapeHtml(p.a)} — ${escapeHtml(p.b)}</b>${types ? ` <span class="thr-chip">${escapeHtml(types)}</span>` : ''}
-                    ${p.note ? `<div class="thr-note">${escapeHtml(p.note)}</div>` : ''}</div>
-                <b class="${p.v > 0 ? 'thr-up' : p.v < 0 ? 'thr-down' : ''}">${signed(p.v || 0)}</b>
-            </div>`;
-    }).join('')}` : '';
-    return cards + links;
-}
-
-function skillsHtml(st) {
-    const list = skillList(st);
-    if (!list.length) return emptyHtml('Навыков пока нет — появятся после первой оценки.');
-    return list.map((e) => barCard(e.name, skillVal(st, e.name.toLowerCase()), 100, '')).join('');
-}
-
-function flagsHtml(st) {
-    const flags = activeFlags(st);
-    const quests = openQuests(st);
-    const row = (name, note, sd) => `
-        <div class="thr-row"><div><b>${escapeHtml(name)}</b>${note ? `<div class="thr-note">${escapeHtml(note)}</div>` : ''}</div>
-        ${sd ? `<span class="thr-note">${escapeHtml(sd)}</span>` : ''}</div>`;
-    return `
-        <div class="thr-sec">Метки сюжета</div>
-        ${flags.length ? flags.map((x) => row(x.f.name || x.key, x.f.note, x.f.sd)).join('') : '<div class="thr-note">пока ни одной метки</div>'}
-        <div class="thr-sec">Обещания и цели</div>
-        ${quests.length ? quests.map((q) => row(q.name, q.note, q.sd)).join('') : '<div class="thr-note">открытых обещаний нет — судья заметит, когда кто-то что-то пообещает</div>'}`;
-}
-
-function achHtml(st) {
-    const order = { legendary: 0, rare: 1, common: 2 };
-    const list = Object.values(st.ach).filter(Boolean)
-        .sort((a, b) => (order[a.rarity] ?? 3) - (order[b.rarity] ?? 3) || (b.at || 0) - (a.at || 0));
-    if (!list.length) return emptyHtml('Пока ни одной — судья следит.');
-    return list.map((a) => `
-        <div class="thr-row"><div><b>${achIcon(a.rarity)} ${escapeHtml(achTitle(a))}</b> <span class="thr-chip">${RARITY_LABELS[a.rarity] || ''}</span>
-            ${a.note ? `<div class="thr-note">${escapeHtml(a.note)}</div>` : ''}</div>
-        ${a.sd ? `<span class="thr-note">${escapeHtml(a.sd)}</span>` : ''}</div>`).join('');
 }
 
 // ---------- Оценка ----------
@@ -313,9 +239,10 @@ async function evaluate({ quiet = false } = {}) {
         now.count = total;
         now.touched = true;
         if (!now.firstAt) now.firstAt = Date.now();
+        const counters = checkMilestones(now);
         await saveState();
 
-        const achShown = showAch(applied.filter((r) => r.kind === 'ACH'));
+        const achShown = showAch(applied.filter((r) => r.kind === 'ACH').concat(counters));
         const marksShown = showMarks(applied.filter((r) => r.kind !== 'ACH' && r.kind !== 'FACT'));
         if (!applied.length && !quiet) showNote('Судья молчит — за это время ничего не изменилось.');
         lastJudge.result = `применено: ${applied.length}${applied.length ? (achShown || marksShown ? ' · сноска показана' : ' · сноска не показана (сноски выключены или это только досье)') : ''}`;
@@ -665,7 +592,18 @@ function onChatChanged() {
     if (isOpen()) renderAll();
 }
 
+/** Ачивки-счётчики (100 сообщений и т.п.) — на каждом сообщении, без запросов к модели. */
+async function checkCounters() {
+    const st = getState();
+    if (!st || busy) return;
+    const got = checkMilestones(st);
+    if (!got.length) return;
+    await saveState();
+    showAch(got);
+}
+
 function onMessagesChanged() {
+    checkCounters().catch((e) => console.error('[Thread] ачивки:', e));
     refreshDiceButton();
     if (isOpen() && activeTab === 'overview' && !busy) renderAll();
 }

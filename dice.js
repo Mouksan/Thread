@@ -138,6 +138,10 @@ function onOutside(e) {
     closePop();
 }
 
+export function openDice() {
+    openPop();
+}
+
 function openPop() {
     if (!popEl) {
         popEl = document.createElement('div');
