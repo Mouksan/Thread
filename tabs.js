@@ -1,7 +1,7 @@
 // Thread — содержимое вкладок окна и их кнопки (✕ записи, ✓ обещания, вернуть метку…).
 // Раскладка — по Storyline; вид — стекло на цветах темы таверны.
 
-import { ctx, getSettings, clampInt, escapeHtml, modeOf, repNow, repLevel, relLevel } from './store.js';
+import { ctx, getSettings, clampInt, escapeHtml, modeOf, repNow, repLevel, relLevel, plural } from './store.js';
 import {
     skillList, skillVal, relVal, signed, activeFlags, achTitle, LINK_LABELS,
 } from './judge.js';
@@ -99,8 +99,8 @@ export function overviewHtml(st, busy) {
     const list = chapters(st);
     const cur = list.length - 1;
     const meta = [];
-    if (st.sdate?.text) meta.push(`📅 ${escapeHtml(st.sdate.text)}`);
-    meta.push(`${total} ✉`);
+    if (st.sdate?.text) meta.push(`<i class="fa-solid fa-calendar fa-fw" aria-hidden="true"></i>${escapeHtml(st.sdate.text)}`);
+    meta.push(plural(total, ['сообщение', 'сообщения', 'сообщений']));
     const titleHtml = ui.editChapter
         ? `<input class="text_pole thr-ch-input" type="text" maxlength="60" placeholder="Название главы (необязательно)" value="${escapeHtml(list[cur].title || '')}" />`
         : `<b>Глава ${cur + 1}</b>${list[cur].title ? ` · ${escapeHtml(list[cur].title)}` : ''}
@@ -108,7 +108,7 @@ export function overviewHtml(st, busy) {
     const chapterHtml = `
         <div class="thr-chapter">
             <div class="thr-ch-title">${titleHtml}</div>
-            <div class="thr-ch-meta">${meta.join(' · ')}</div>
+            <div class="thr-ch-meta">${meta.join('<span aria-hidden="true">·</span>')}</div>
             <button class="thr-ch-close ${ui.closeArmed ? 'thr-armed' : ''}" type="button" data-act="chclose">
                 ${ui.closeArmed ? `Закрыть главу ${cur + 1}? Нажми ещё раз` : '<i class="fa-solid fa-bookmark"></i> Закрыть главу'}
             </button>
@@ -170,7 +170,7 @@ function factsHtml(st, name) {
 
 export function relsHtml(st) {
     const names = Object.keys(st.rels).sort((a, b) => relVal(st, b) - relVal(st, a));
-    if (!names.length) return emptyHtml('Пока никого — судья запишет персонажей, когда посмотрит историю.');
+    if (!names.length) return emptyHtml('Пока никого — судья запишет персонажей, когда посмотрит историю');
     const cards = names.map((n) => {
         const v = relVal(st, n);
         const av = avatarFor(st, n);
@@ -185,7 +185,7 @@ export function relsHtml(st) {
                         : `<span class="thr-rel-title"><b>${escapeHtml(n)}</b>
                             <button class="thr-x" type="button" data-act="nameedit" data-name="${escapeHtml(n)}" title="Своё имя" aria-label="Своё имя"><i class="fa-solid fa-pen"></i></button>
                             <button class="thr-x ${ui.rmArmed === n ? 'thr-armed' : ''}" type="button" data-act="rmchar" data-name="${escapeHtml(n)}" title="${ui.rmArmed === n ? 'Нажми ещё раз — убрать насовсем' : 'Убрать персонажа'}" aria-label="Убрать персонажа"><i class="fa-solid ${ui.rmArmed === n ? 'fa-trash' : 'fa-xmark'}"></i></button></span>`}
-                        <span class="thr-note">${ui.rmArmed === n ? 'Нажми 🗑 ещё раз: персонаж уйдёт вместе с графиком, досье и связями, и судья больше не будет его записывать' : escapeHtml(relLevel(v))}</span></div>
+                        <span class="thr-note">${ui.rmArmed === n ? 'Нажми ещё раз — персонаж уйдёт вместе с графиком, досье и связями, и судья больше не будет его записывать' : escapeHtml(relLevel(v))}</span></div>
                     <b class="thr-rel-val ${tone(v)}">${signed(v)}</b>
                 </div>
                 <div class="thr-bar thr-bar-mid"><i style="${v >= 0 ? `left:50%;width:${v / 2}%` : `right:50%;width:${-v / 2}%`}"></i></div>
@@ -214,19 +214,19 @@ export function relsHtml(st) {
 
 // ---------- Навыки ----------
 
-/** Состояние подбора навыков «✨ из сюжета» — живёт, пока открыто окно. */
+/** Состояние подбора навыков «Из сюжета» — живёт, пока открыто окно. */
 export const skillUi = { suggesting: false, list: null, error: '' };
 
 function genreHtml(st) {
     const g = genreOf(st);
     const chips = Object.entries(GENRES).map(([id, x]) => `
-        <button class="thr-chip-btn ${id === g ? 'thr-on' : ''}" type="button" data-act="genre" data-genre="${id}">${x.icon} ${escapeHtml(x.label)}</button>`).join('');
+        <button class="thr-chip-btn ${id === g ? 'thr-on' : ''}" type="button" data-act="genre" data-genre="${id}"><i class="fa-solid ${x.icon} fa-fw" aria-hidden="true"></i>${escapeHtml(x.label)}</button>`).join('');
     return `
         <details class="thr-genre" ${g ? '' : 'open'}>
-            <summary><b>🎭 Жанр истории:</b> ${g ? `${GENRES[g].icon} ${escapeHtml(GENRES[g].label)}` : 'не выбран'}</summary>
+            <summary><b><i class="fa-solid fa-masks-theater fa-fw" aria-hidden="true"></i>Жанр истории:</b> ${g ? escapeHtml(GENRES[g].label) : 'не выбран'}</summary>
             <div class="thr-note">Один клик — навыки под жанр, судья замечает жанровые вещи, появляются жанровые ачивки. Прокачанные навыки не пропадут.</div>
-            <div class="thr-chips">${chips}${g ? '<button class="thr-chip-btn" type="button" data-act="genre" data-genre="">✕ без жанра</button>' : ''}</div>
-            <div class="thr-note">Базовые навыки ${g ? 'жанра' : ''}: ${escapeHtml(baseSkillNames(st).join(', '))}</div>
+            <div class="thr-chips">${chips}${g ? '<button class="thr-chip-btn" type="button" data-act="genre" data-genre="">Без жанра</button>' : ''}</div>
+            <div class="thr-note">Базовые навыки${g ? ' жанра' : ''}: ${escapeHtml(baseSkillNames(st).join(', '))}</div>
         </details>`;
 }
 
@@ -234,7 +234,7 @@ function suggestHtml() {
     if (skillUi.suggesting) return '<div class="thr-note"><i class="fa-solid fa-spinner fa-spin"></i> Подбираю навыки по сюжету…</div>';
     if (skillUi.error) return `<div class="thr-note thr-down">Не получилось подобрать: ${escapeHtml(skillUi.error)}</div>`;
     if (!skillUi.list) return '';
-    if (!skillUi.list.length) return '<div class="thr-note">Ничего нового — все подходящие навыки уже есть.</div>';
+    if (!skillUi.list.length) return '<div class="thr-note">Ничего нового — все подходящие навыки уже есть</div>';
     return `
         <div class="thr-note">Клик — добавить навык:</div>
         <div class="thr-chips">
@@ -262,7 +262,7 @@ export function skillsHtml(st) {
                 <div class="thr-bar"><i style="width:${v}%"></i></div>
                 <div class="thr-note">бонус к броску: +${Math.floor(v / 10)}</div>
             </div>`;
-    }).join('') : emptyHtml('Навыков нет — выбери жанр, нажми «✨ Из сюжета» или впиши свой.');
+    }).join('') : emptyHtml('Навыков нет — выбери жанр, нажми «Из сюжета» или впиши свой');
     const tools = `
         <div class="thr-btn-row">
             <button class="menu_button thr-wide-btn" type="button" data-act="suggest" ${skillUi.suggesting ? 'disabled' : ''}><i class="fa-solid fa-wand-magic-sparkles"></i><span>Из сюжета</span></button>
@@ -288,12 +288,12 @@ export function flagsHtml(st) {
 
     const flagRows = active.length ? active.map(({ key, f }) => `
         <div class="thr-row">
-            <div><b>🚩 ${escapeHtml(f.name || key)}</b>${f.note ? `<div class="thr-note">${escapeHtml(f.note)}</div>` : ''}${f.sd ? `<div class="thr-note">${escapeHtml(f.sd)}</div>` : ''}</div>
+            <div><b><i class="fa-solid fa-flag fa-fw thr-mark-ico" aria-hidden="true"></i>${escapeHtml(f.name || key)}</b>${f.note ? `<div class="thr-note">${escapeHtml(f.note)}</div>` : ''}${f.sd ? `<div class="thr-note">${escapeHtml(f.sd)}</div>` : ''}</div>
             ${x('delflag', `data-key="${escapeHtml(key)}"`, 'Убрать метку')}
         </div>`).join('') : '<div class="thr-note">пока ни одной метки</div>';
     const goneRows = gone.length ? `<div class="thr-sub">Снятые</div>${gone.map(([key, f]) => `
         <div class="thr-row thr-faded">
-            <div><b>🌘 ${escapeHtml(f.name || key)}</b>${f.note ? `<div class="thr-note">${escapeHtml(f.note)}</div>` : ''}</div>
+            <div><b><i class="fa-solid fa-moon fa-fw thr-mark-ico" aria-hidden="true"></i>${escapeHtml(f.name || key)}</b>${f.note ? `<div class="thr-note">${escapeHtml(f.note)}</div>` : ''}</div>
             <div class="thr-row-btns">
                 <button class="thr-x" type="button" data-act="reflag" data-key="${escapeHtml(key)}" title="Вернуть метку" aria-label="Вернуть метку"><i class="fa-solid fa-rotate-left"></i></button>
                 ${x('delflag', `data-key="${escapeHtml(key)}"`)}
@@ -302,7 +302,7 @@ export function flagsHtml(st) {
 
     const qRows = open.length ? open.map(([k, q]) => `
         <div class="thr-row">
-            <div><b>📜 ${escapeHtml(q.name)}</b>${q.note ? `<div class="thr-note">${escapeHtml(q.note)}</div>` : ''}${q.sd ? `<div class="thr-note">${escapeHtml(q.sd)}</div>` : ''}</div>
+            <div><b><i class="fa-solid fa-scroll fa-fw thr-mark-ico" aria-hidden="true"></i>${escapeHtml(q.name)}</b>${q.note ? `<div class="thr-note">${escapeHtml(q.note)}</div>` : ''}${q.sd ? `<div class="thr-note">${escapeHtml(q.sd)}</div>` : ''}</div>
             <div class="thr-row-btns">
                 <button class="thr-x thr-ok" type="button" data-act="qdone" data-k="${escapeHtml(k)}" title="Выполнено" aria-label="Выполнено"><i class="fa-solid fa-check"></i></button>
                 ${x('qrm', `data-k="${escapeHtml(k)}"`)}
@@ -310,14 +310,14 @@ export function flagsHtml(st) {
         </div>`).join('') : '<div class="thr-note">открытых обещаний нет — судья заметит, когда кто-то что-то пообещает</div>';
     const doneRows = closed.length ? `<div class="thr-sub">Закрытые</div>${closed.map(([k, q]) => `
         <div class="thr-row thr-faded">
-            <div><b>✔️ ${escapeHtml(q.name)}</b>${q.end ? `<div class="thr-note">${escapeHtml(q.end)}</div>` : ''}</div>
+            <div><b><i class="fa-solid fa-check fa-fw thr-mark-ico" aria-hidden="true"></i>${escapeHtml(q.name)}</b>${q.end ? `<div class="thr-note">${escapeHtml(q.end)}</div>` : ''}</div>
             ${x('qrm', `data-k="${escapeHtml(k)}"`)}
         </div>`).join('')}` : '';
 
     const lw = lifeweaverFacts();
     const lwRows = lw.length ? `
         <div class="thr-sub">Из Lifeweaver — обновляются сами</div>
-        <div class="thr-chips">${lw.map((f) => `<span class="thr-chip thr-lw-chip">${f.kind === 'children' ? '👶' : f.kind === 'clutch' ? '🥚' : '🌱'} ${escapeHtml(f.text)}</span>`).join('')}</div>` : '';
+        <div class="thr-chips">${lw.map((f) => `<span class="thr-chip thr-lw-chip"><i class="fa-solid ${f.kind === 'children' ? 'fa-baby' : f.kind === 'clutch' ? 'fa-egg' : 'fa-seedling'} fa-fw" aria-hidden="true"></i>${escapeHtml(f.text)}</span>`).join('')}</div>` : '';
     return `
         <div class="thr-sec">Метки сюжета</div>
         ${flagRows}${goneRows}${lwRows}
@@ -355,7 +355,7 @@ export function achHtml(st) {
 
     return `
         <div class="thr-note thr-progress">открыто встроенных: ${gotBuiltin} из ${Object.keys(builtin).length}${got.length > gotBuiltin ? ` · своих от судьи: ${got.length - gotBuiltin}` : ''}</div>
-        ${got.length ? `<div class="thr-ach-grid">${cards}</div>` : emptyHtml('Пока ни одной — судья следит.')}
+        ${got.length ? `<div class="thr-ach-grid">${cards}</div>` : emptyHtml('Пока ни одной — судья следит')}
         ${locked ? `<div class="thr-sec">Ещё не открыты</div><div class="thr-ach-grid">${locked}</div>` : ''}`;
 }
 

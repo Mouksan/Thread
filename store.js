@@ -181,6 +181,14 @@ export function repLevel(value) {
 
 const REL_EDGES = [-60, -20, 20, 60];
 const REL_NAMES = ['враждебность', 'холод', 'равнодушие', 'симпатия', 'привязанность'];
+const PLURAL_RU = new Intl.PluralRules('ru');
+
+/** Число со словом в нужной форме: plural(3, ['сообщение', 'сообщения', 'сообщений']) → «3 сообщения». */
+export function plural(n, [one, few, many]) {
+    const form = PLURAL_RU.select(n);
+    return `${n} ${form === 'one' ? one : form === 'few' ? few : many}`;
+}
+
 export function relLevel(value) {
     for (let i = 0; i < REL_EDGES.length; i++) if (value < REL_EDGES[i]) return REL_NAMES[i];
     return REL_NAMES[REL_NAMES.length - 1];

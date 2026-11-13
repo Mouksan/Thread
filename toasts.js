@@ -1,6 +1,6 @@
 // Thread — сноски поверх чата.
 // Обычные отметки — стопкой в правом верхнем углу (в духе Lifeweaver),
-// ачивки — карточкой сверху по центру с отскоком и цветом редкости (в духе Hearthtide).
+// ачивки — карточкой сверху по центру с цветом редкости (в духе Hearthtide).
 // По умолчанию висят до клика; «через 5 / 15 сек» — в настройках.
 
 import { getSettings, escapeHtml } from './store.js';
@@ -43,15 +43,18 @@ function mount(box, card, max) {
     if (ms) setTimeout(close, ms);
 }
 
+const fa = (name) => `<i class="fa-solid ${name} fa-fw" aria-hidden="true"></i>`;
+
+/** Значок отметки. Ачивки — своим эмодзи редкости (это содержимое), остальное — иконки темы. */
 export function markIcon(r) {
-    if (r.kind === 'REL') return r.delta > 0 ? '❤' : '💔';
-    if (r.kind === 'SKILL') return r.delta > 0 ? '⚡' : '💫';
-    if (r.kind === 'REP') return '🏛';
+    if (r.kind === 'REL') return fa(r.delta > 0 ? 'fa-heart' : 'fa-heart-crack');
+    if (r.kind === 'SKILL') return fa(r.delta > 0 ? 'fa-bolt' : 'fa-arrow-trend-down');
+    if (r.kind === 'REP') return fa('fa-landmark');
     if (r.kind === 'ACH') return achIcon(r.rarity);
-    if (r.kind === 'LINK') return '🔗';
-    if (r.kind === 'PROMISE') return r.on ? '📜' : '✔️';
-    if (r.kind === 'CHECK') return '🎲';
-    return r.on ? '🚩' : '🌘';
+    if (r.kind === 'LINK') return fa('fa-link');
+    if (r.kind === 'PROMISE') return fa(r.on ? 'fa-scroll' : 'fa-check');
+    if (r.kind === 'CHECK') return fa('fa-dice-d20');
+    return fa(r.on ? 'fa-flag' : 'fa-moon');
 }
 
 /** Одна строка отметки — общая для сносок и ленты событий. */
@@ -89,7 +92,7 @@ export function showNote(text, { force = false } = {}) {
     cornerCard(`<div class="thr-toast-title"><i class="fa-solid fa-diagram-project"></i> Thread</div><div class="thr-toast-text">${escapeHtml(text)}</div>`, 'info');
 }
 
-/** Ачивки — по центру сверху, с отскоком. */
+/** Ачивки — по центру сверху. */
 export function showAch(rows) {
     if (!getSettings().toasts || !rows?.length) return false;
     for (const r of rows.slice(0, MAX_ACH)) {

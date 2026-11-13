@@ -24,7 +24,7 @@ function yearsWord(n) {
 
 const D_SRC = { hearthtide: 'из Hearthtide', ai: 'угадано', manual: 'вручную' };
 
-/** Строка «🎂 День рождения: 14 марта 1962 · сейчас 34 года». */
+/** Строка «День рождения: 14 марта 1962 · сейчас 34 года» с иконкой торта. */
 function birthdayHtml(st, a) {
     const m = /^(\d{1,2})\.(\d{1,2})(?:\.(\d{4}))?$/.exec(String(a?.d || ''));
     if (!m) return '';
@@ -32,7 +32,7 @@ function birthdayHtml(st, a) {
     const age = ageOn(a.d, ad.ms);
     const today = birthdayToday(a.d, ad.ms);
     const src = D_SRC[a.dSrc || a.src] || '';
-    return `<div class="thr-bday ${today ? 'thr-bday-today' : ''}">🎂 ${today ? '<b>Сегодня день рождения!</b> ' : 'День рождения: '}${+m[1]} ${MONTHS_GEN[+m[2] - 1]}${m[3] ? ` ${m[3]}` : ''}${age != null ? ` · ${today ? 'исполняется' : 'сейчас'} ${age} ${yearsWord(age)}` : ''}${src ? ` <span class="thr-note">· ${src}</span>` : ''}</div>`;
+    return `<div class="thr-bday ${today ? 'thr-bday-today' : ''}"><i class="fa-solid fa-cake-candles fa-fw" aria-hidden="true"></i>${today ? '<b>Сегодня день рождения</b> ' : 'День рождения: '}${+m[1]} ${MONTHS_GEN[+m[2] - 1]}${m[3] ? ` ${m[3]}` : ''}${age != null ? ` · ${today ? 'исполняется' : 'сейчас'} ${age} ${yearsWord(age)}` : ''}${src ? ` <span class="thr-note">· ${src}</span>` : ''}</div>`;
 }
 
 export const astroUi = { sel: null, form: false, busy: '', err: '', info: '', meEdit: false };
@@ -43,7 +43,7 @@ function initials(name) {
 
 function ava(st, p, cls = 'thr-ava') {
     const url = p.isMe ? personaThumb() : avatarFor(st, p.name);
-    return url ? `<img class="${cls}" src="${escapeHtml(url)}" alt="" loading="lazy" />` : `<span class="${cls} thr-ava-empty">${p.isMe ? '🧵' : initials(p.name)}</span>`;
+    return url ? `<img class="${cls}" src="${escapeHtml(url)}" alt="" loading="lazy" />` : `<span class="${cls} thr-ava-empty">${initials(p.name)}</span>`;
 }
 
 function profileLine(a) {
@@ -80,7 +80,7 @@ function retroHtml(ad) {
     let body;
     if (r?.on) body = `Ретроград: ${retroRange(r.start, r.end)} · день ${r.n} из ${r.total}<div class="thr-note">Типичное: недопонимания и сбои связи, срываются планы; возвращается прошлое — пишут бывшие, всплывают старые дела.</div>`;
     else if (r) body = `Следующий ретроград: ${retroRange(r.start, r.end)} · через ${r.inDays} дн.`;
-    else body = '<span class="thr-note">Для этой даты данных нет (таблица охватывает 1900–2100).</span>';
+    else body = '<span class="thr-note">Для этой даты данных нет (таблица охватывает 1900–2100)</span>';
     return `<div class="thr-astro-sec">☿ Меркурий ${chip} ${infoBtn('retro')}</div>${infoHtml('retro')}<div>${body}</div>`;
 }
 
@@ -91,9 +91,9 @@ function dailyHtml(st, key) {
         <div class="thr-astro-sec">Фаза луны ${infoBtn('moon')}</div>${infoHtml('moon')}
         <div>${d.moon.i} <b>${escapeHtml(d.moon.n)}</b></div><div class="thr-note">${escapeHtml(d.moon.m)}</div>
         <div class="thr-astro-sec">Карта дня ${infoBtn('tarot')}</div>${infoHtml('tarot')}
-        <div>🃏 <b>${escapeHtml(d.tarot.n)}</b></div><div class="thr-note">${escapeHtml(d.tarot.m)}</div>
+        <div><b>${escapeHtml(d.tarot.n)}</b></div><div class="thr-note">${escapeHtml(d.tarot.m)}</div>
         <div class="thr-astro-sec">Число дня ${infoBtn('num')}</div>${infoHtml('num')}
-        <div>👼 <b>${escapeHtml(d.num.n)}</b> <span class="thr-note">— ${escapeHtml(d.num.m)}</span></div>
+        <div><b>${escapeHtml(d.num.n)}</b> <span class="thr-note">— ${escapeHtml(d.num.m)}</span></div>
         ${retroHtml(ad)}`;
 }
 
@@ -148,13 +148,13 @@ function fxHtml(st) {
     const f = astroState(st).fx;
     const ad = astroDay(st);
     const dis = f.on ? '' : 'disabled';
-    const boxes = [['retro', '☿', 'Ретроградный Меркурий'], ['moon', '🌙', 'Фаза луны'], ['tarot', '🃏', 'Карта дня'], ['num', '👼', 'Число дня'], ['sign', '♈', 'Знаки и MBTI']]
-        .map(([k, i, label]) => `<label class="checkbox_label"><input type="checkbox" data-afx="${k}" ${f[k] ? 'checked' : ''} ${dis} /> ${i} ${label}</label>`).join('');
+    const boxes = [['retro', 'Ретроградный Меркурий'], ['moon', 'Фаза луны'], ['tarot', 'Карта дня'], ['num', 'Число дня'], ['sign', 'Знаки и MBTI']]
+        .map(([k, label]) => `<label class="checkbox_label"><input type="checkbox" data-afx="${k}" ${f[k] ? 'checked' : ''} ${dis} /> ${label}</label>`).join('');
     const freq = [['rare', 'Редко — примерно раз в 12 ответов'], ['mid', 'Иногда — примерно раз в 6 ответов'], ['often', 'Часто — примерно раз в 3 ответа']]
         .map(([k, label]) => `<option value="${k}" ${f.freq === k ? 'selected' : ''}>${label}</option>`).join('');
     return `
         <details class="thr-genre thr-astro-fx">
-            <summary><b>🪐 Астро: влияние на сюжет</b> — ${f.on ? 'включено' : 'выключено'}</summary>
+            <summary><b>Влияние на сюжет</b> — ${f.on ? 'включено' : 'выключено'}</summary>
             ${retroHtml(ad)}
             ${dateUsedHtml(ad)}
             <label class="checkbox_label"><input type="checkbox" data-afx="on" ${f.on ? 'checked' : ''} /> <b>Влиять на сюжет</b></label>
@@ -181,7 +181,7 @@ export function astroHtml(st) {
         return `
             <button class="thr-astro-row" type="button" data-act="azopen" data-key="${escapeHtml(p.key)}">
                 ${ava(st, p)}
-                <span class="thr-astro-row-main"><b>${escapeHtml(p.name)}</b>${p.isMe ? ' <span class="thr-note">· ты</span>' : ''}${a?.d && birthdayToday(a.d, astroDay(st).ms) ? ' 🎂' : ''}
+                <span class="thr-astro-row-main"><b>${escapeHtml(p.name)}</b>${p.isMe ? ' <span class="thr-note">· ты</span>' : ''}${a?.d && birthdayToday(a.d, astroDay(st).ms) ? ' <i class="fa-solid fa-cake-candles thr-bday-ico" title="Сегодня день рождения" aria-label="Сегодня день рождения"></i>' : ''}
                     <span class="thr-note">${escapeHtml(profileLine(a))}</span></span>
                 <i class="fa-solid fa-chevron-right thr-note"></i>
             </button>`;

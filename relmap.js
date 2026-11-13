@@ -153,7 +153,7 @@ function svgHtml(st, names) {
         <circle class="thr-map-me-ring" cx="${CX}" cy="${CY}" r="22" />
         ${me
             ? `<clipPath id="thr-mcp-me"><circle cx="${CX}" cy="${CY}" r="20" /></clipPath><image href="${escapeHtml(me)}" x="${CX - 20}" y="${CY - 20}" width="40" height="40" preserveAspectRatio="xMidYMid slice" clip-path="url(#thr-mcp-me)" />`
-            : `<text class="thr-map-ini" x="${CX}" y="${CY + 5}">🧵</text>`}
+            : `<text class="thr-map-ini" x="${CX}" y="${CY + 5}">${escapeHtml(initial(meName))}</text>`}
         <text class="thr-map-label thr-map-label-me" x="${CX}" y="${CY + 36}">${escapeHtml(shortName(meName))}</text>
     </g>`);
     // персонажи
@@ -247,8 +247,8 @@ export function mapHtml(st) {
     return `
         ${zoomRow}
         <div class="thr-map-wrap">${svgHtml(st, names)}${popHtml(st)}</div>
-        <div class="thr-note">Персонажей можно перетаскивать — расстановка запомнится в этом чате.</div>
-        ${more ? `<div class="thr-note">Ещё ${more} — в списке.</div>` : ''}
+        <div class="thr-note">Персонажей можно перетаскивать — расстановка запомнится в этом чате</div>
+        ${more ? `<div class="thr-note">Ещё ${more} — в списке</div>` : ''}
         ${legendHtml()}`;
 }
 

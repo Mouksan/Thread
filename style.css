@@ -1,4 +1,40 @@
-/* Thread — стили. Окно стеклянное и живёт на цветах темы таверны (каркас — как у Junket). */
+/* Thread — стили. Окно живёт на цветах и классах темы таверны: свои здесь только раскладка,
+   роли текста и «цвета содержимого» (карта связей, редкость ачивок) — они собраны в одном блоке ниже.
+   Полировка — по мотивам unslop Дамира Соколовского (@heydamir, github.com/heydamir/unslop), CC BY 4.0. */
+
+/* ---------- Роли и общие значения ---------- */
+
+:root {
+    /* Поверхности: ступени от цвета текста темы — работают и в тёмной, и в светлой */
+    --thr-surface: color-mix(in srgb, var(--SmartThemeBodyColor) 5%, transparent);
+    --thr-surface-2: color-mix(in srgb, var(--SmartThemeBodyColor) 10%, transparent);
+    /* Текст: основной, вторичный, приглушённый */
+    --thr-text: var(--SmartThemeBodyColor);
+    --thr-text-2: color-mix(in srgb, var(--SmartThemeBodyColor) 75%, transparent);
+    --thr-text-3: color-mix(in srgb, var(--SmartThemeBodyColor) 55%, transparent);
+    /* Волоски: тонкий — разделители, плотный — рамки контролов и карточек */
+    --thr-line: color-mix(in srgb, var(--SmartThemeBorderColor) 30%, transparent);
+    --thr-line-2: color-mix(in srgb, var(--SmartThemeBorderColor) 60%, transparent);
+    --thr-accent: var(--SmartThemeQuoteColor);
+    --thr-accent-bg: color-mix(in srgb, var(--SmartThemeQuoteColor) 16%, transparent);
+    --thr-shadow: var(--SmartThemeShadowColor, transparent);
+    /* Смысловые цвета: приглушённые и смешанные с текстом темы */
+    --thr-good: color-mix(in srgb, #3fb26b 60%, var(--SmartThemeBodyColor));
+    --thr-bad: color-mix(in srgb, #e5484d 60%, var(--SmartThemeBodyColor));
+    --thr-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ---------- Цвета содержимого: редкость ачивок (палитра карты связей — в relmap.js) ---------- */
+
+.thr-ach,
+.thr-ach-card {
+    --thr-rar: var(--thr-text-3);
+}
+
+.thr-rar-rare { --thr-rar: #c9a659; }
+.thr-rar-legendary { --thr-rar: #d9779b; }
+
+/* ---------- Окно ---------- */
 
 .thr-overlay {
     /* Не inset: 0 (порт из Junket)! В CSS таверны у <html> стоит translateZ(0), и мобильный Firefox
@@ -18,7 +54,7 @@
     padding: 16px;
     /* Окно всегда влезает (max-height: 100%), прокручивать подложку нечего */
     overflow: hidden;
-    background: rgba(0, 0, 0, 0.45);
+    background: color-mix(in srgb, var(--SmartThemeBlurTintColor) 55%, transparent);
 }
 
 .thr-overlay.thr-open {
@@ -34,12 +70,20 @@
     height: min(640px, 100%);
     max-height: 100%;
     overflow: hidden;
-    color: var(--SmartThemeBodyColor);
+    color: var(--thr-text);
     background: var(--SmartThemeBlurTintColor);
-    backdrop-filter: blur(var(--SmartThemeBlurStrength, 10px));
-    border: 1px solid var(--SmartThemeBorderColor);
+    border: 1px solid var(--thr-line-2);
     border-radius: 14px;
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 12px 32px var(--thr-shadow);
+}
+
+.thr-overlay.thr-open .thr-window {
+    animation: thr-win-in 240ms var(--thr-ease) both;
+}
+
+@keyframes thr-win-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
 }
 
 /* Шапка */
@@ -48,7 +92,7 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 12px 14px 8px;
+    padding: 12px 16px 8px;
 }
 
 .thr-title {
@@ -56,20 +100,20 @@
     align-items: center;
     gap: 8px;
     font-size: 1.15em;
-    font-weight: 700;
+    font-weight: 600;
     white-space: nowrap;
 }
 
 .thr-title i {
-    color: var(--SmartThemeQuoteColor);
+    color: var(--thr-accent);
 }
 
 .thr-chatname {
     flex: 1;
     min-width: 0;
     overflow: hidden;
+    color: var(--thr-text-3);
     font-size: 0.8em;
-    opacity: 0.6;
     white-space: nowrap;
     text-overflow: ellipsis;
 }
@@ -81,193 +125,19 @@
     width: 32px;
     height: 32px;
     padding: 0;
-    color: inherit;
+    color: var(--thr-text-2);
     background: transparent;
     border: none;
-    border-radius: 8px;
+    border-radius: 6px;
     cursor: pointer;
-    opacity: 0.7;
-    transition: opacity 0.15s, background 0.15s;
+    transition: color 150ms var(--thr-ease), background-color 150ms var(--thr-ease);
 }
 
-.thr-icon-btn:hover {
-    opacity: 1;
-    background: rgba(127, 127, 127, 0.15);
+.thr-icon-btn:hover,
+.thr-icon-btn:focus-visible {
+    color: var(--thr-text);
+    background: var(--thr-surface-2);
 }
-
-/* Вкладки */
-
-.thr-tabs {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    padding: 0 14px 10px;
-    border-bottom: 1px solid var(--SmartThemeBorderColor);
-}
-
-.thr-tab {
-    padding: 6px 14px;
-    color: inherit;
-    font: inherit;
-    background: transparent;
-    border: 1px solid var(--SmartThemeBorderColor);
-    border-radius: 999px;
-    cursor: pointer;
-    opacity: 0.7;
-    transition: opacity 0.15s, background 0.15s, border-color 0.15s;
-}
-
-.thr-tab:hover {
-    opacity: 1;
-}
-
-.thr-tab.thr-active {
-    opacity: 1;
-    border-color: var(--SmartThemeQuoteColor);
-    background: color-mix(in srgb, var(--SmartThemeQuoteColor) 18%, transparent);
-}
-
-.thr-tab[data-tab="settings"] {
-    margin-left: auto;
-    padding: 6px 10px;
-}
-
-/* Содержимое */
-
-.thr-body {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    padding: 14px;
-}
-
-.thr-pane {
-    display: none;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.thr-pane.thr-active {
-    display: flex;
-}
-
-.thr-empty {
-    padding: 36px 16px;
-    text-align: center;
-    opacity: 0.6;
-}
-
-.thr-note {
-    font-size: 0.85em;
-    opacity: 0.65;
-}
-
-.thr-hint {
-    padding: 10px 12px;
-    font-size: 0.9em;
-    border: 1px dashed var(--SmartThemeBorderColor);
-    border-radius: 10px;
-}
-
-.thr-progress {
-    text-align: right;
-}
-
-/* Карточка со шкалой */
-
-.thr-card {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding: 12px;
-    border: 1px solid var(--SmartThemeBorderColor);
-    border-radius: 10px;
-    background: rgba(127, 127, 127, 0.06);
-}
-
-.thr-card-head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-}
-
-.thr-card-head b {
-    font-size: 1.3em;
-}
-
-.thr-card-head small {
-    font-weight: 400;
-    opacity: 0.55;
-}
-
-.thr-bar {
-    height: 6px;
-    overflow: hidden;
-    background: rgba(127, 127, 127, 0.2);
-    border-radius: 999px;
-}
-
-.thr-bar i {
-    display: block;
-    height: 100%;
-    background: var(--SmartThemeQuoteColor);
-    border-radius: 999px;
-}
-
-/* Настройки */
-
-.thr-set {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-}
-
-.thr-set-group {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding-bottom: 14px;
-    border-bottom: 1px solid var(--SmartThemeBorderColor);
-}
-
-.thr-set-group:last-child {
-    padding-bottom: 0;
-    border-bottom: none;
-}
-
-.thr-set-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-}
-
-.thr-label {
-    font-size: 0.95em;
-}
-
-.thr-num {
-    flex: none;
-    width: 150px;
-    margin: 0;
-}
-
-.thr-danger {
-    align-self: flex-start;
-}
-
-
-/* Кнопки таверны в окне по умолчанию сжимаются до самого длинного слова — растягиваем по тексту */
-
-.thr-window .menu_button {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    width: fit-content;
-    white-space: nowrap;
-}
-
-/* ⟳ в шапке */
 
 .thr-icon-btn:disabled {
     cursor: default;
@@ -282,20 +152,161 @@
     to { transform: rotate(360deg); }
 }
 
-/* Обзор и списки */
+/* Вкладки */
+
+.thr-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 0 16px 12px;
+    border-bottom: 1px solid var(--thr-line);
+}
+
+.thr-tab {
+    padding: 4px 12px;
+    color: var(--thr-text-2);
+    font: inherit;
+    background: transparent;
+    border: 1px solid var(--thr-line-2);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: color 150ms var(--thr-ease), background-color 150ms var(--thr-ease), border-color 150ms var(--thr-ease);
+}
+
+.thr-tab:hover,
+.thr-tab:focus-visible {
+    color: var(--thr-text);
+}
+
+.thr-tab.thr-active {
+    color: var(--thr-text);
+    border-color: var(--thr-accent);
+    background: var(--thr-accent-bg);
+}
+
+.thr-tab[data-tab="settings"] {
+    margin-left: auto;
+    padding: 4px 8px;
+}
+
+/* Содержимое */
+
+.thr-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 16px;
+}
+
+.thr-pane {
+    display: none;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.thr-pane.thr-active {
+    display: flex;
+}
+
+.thr-empty {
+    padding: 32px 16px;
+    color: var(--thr-text-3);
+    text-align: center;
+}
+
+.thr-note {
+    color: var(--thr-text-3);
+    font-size: 0.85em;
+}
+
+.thr-hint {
+    padding: 12px;
+    font-size: 0.9em;
+    border: 1px dashed var(--thr-line-2);
+    border-radius: 10px;
+}
+
+.thr-progress {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Карточка со шкалой */
+
+.thr-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid var(--thr-line);
+    border-radius: 10px;
+    background: var(--thr-surface);
+}
+
+.thr-card-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+}
+
+.thr-card-head b {
+    font-size: 1.3em;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.thr-card-head small {
+    color: var(--thr-text-3);
+    font-weight: 400;
+}
+
+.thr-bar {
+    height: 6px;
+    overflow: hidden;
+    background: var(--thr-surface-2);
+    border-radius: 999px;
+}
+
+.thr-bar i {
+    display: block;
+    height: 100%;
+    background: var(--thr-accent);
+    border-radius: 999px;
+}
+
+/* Шкала отношений: ноль посередине */
+
+.thr-bar-mid {
+    position: relative;
+}
+
+.thr-bar-mid i {
+    position: absolute;
+    top: 0;
+}
+
+/* Кнопки таверны в окне по умолчанию сжимаются до самого длинного слова — растягиваем по тексту */
+
+.thr-window .menu_button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    width: fit-content;
+    white-space: nowrap;
+}
+
+/* ---------- Обзор и списки ---------- */
 
 .thr-date {
+    color: var(--thr-text-2);
     font-size: 0.9em;
-    opacity: 0.8;
 }
 
 .thr-sec {
-    margin-top: 6px;
-    font-size: 0.8em;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    opacity: 0.6;
+    margin-top: 8px;
+    color: var(--thr-text-3);
+    font-size: 0.85em;
+    font-weight: 500;
 }
 
 .thr-feed {
@@ -306,7 +317,7 @@
 .thr-feed-row,
 .thr-row {
     padding: 8px 0;
-    border-bottom: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor) 60%, transparent);
+    border-bottom: 1px solid var(--thr-line);
 }
 
 .thr-feed-row:last-child,
@@ -321,31 +332,49 @@
     gap: 12px;
 }
 
+.thr-feed-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.thr-feed-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.thr-row-btns {
+    display: flex;
+    flex: none;
+    gap: 4px;
+}
+
 .thr-chip {
-    padding: 1px 8px;
-    font-size: 0.78em;
-    border: 1px solid var(--SmartThemeBorderColor);
+    padding: 0 8px;
+    color: var(--thr-text-2);
+    font-size: 0.8em;
+    border: 1px solid var(--thr-line-2);
     border-radius: 999px;
-    opacity: 0.8;
 }
 
 .thr-up {
-    color: #6fbf8b;
+    color: var(--thr-good);
+    font-variant-numeric: tabular-nums;
 }
 
 .thr-down {
-    color: #d9778b;
+    color: var(--thr-bad);
+    font-variant-numeric: tabular-nums;
 }
 
-/* Шкала отношений: ноль посередине */
-
-.thr-bar-mid {
-    position: relative;
+.thr-sub {
+    margin-top: 4px;
+    color: var(--thr-text-3);
+    font-size: 0.8em;
 }
 
-.thr-bar-mid i {
-    position: absolute;
-    top: 0;
+.thr-faded {
+    opacity: 0.55;
 }
 
 /* Строка отметки — общая для ленты и сносок */
@@ -359,389 +388,21 @@
 .thr-mico {
     flex: none;
     width: 1.4em;
+    color: var(--thr-text-3);
     text-align: center;
 }
 
 .thr-mnote {
-    opacity: 0.7;
+    color: var(--thr-text-2);
 }
 
-/* Сноски: отметки — стопкой в правом верхнем углу (как у Lifeweaver) */
-
-#thr-toasts {
-    position: fixed;
-    top: 16px;
-    right: 16px;
-    z-index: 10001;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    pointer-events: none;
-}
-
-.thr-toast {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    max-width: 340px;
-    padding: 10px 28px 10px 14px;
-    color: var(--SmartThemeBodyColor);
-    font-size: 0.85rem;
-    background: color-mix(in srgb, var(--SmartThemeBlurTintColor) 88%, transparent);
-    backdrop-filter: blur(var(--SmartThemeBlurStrength, 12px));
-    -webkit-backdrop-filter: blur(var(--SmartThemeBlurStrength, 12px));
-    border: 1px solid color-mix(in srgb, var(--SmartThemeBodyColor) 22%, transparent);
-    border-left: 3px solid var(--SmartThemeQuoteColor);
-    border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-    cursor: pointer;
-    pointer-events: auto;
-    opacity: 0;
-    transform: translateX(16px);
-    transition: opacity 0.25s ease, transform 0.25s ease;
-}
-
-.thr-toast.thr-in {
-    opacity: 1;
-    transform: none;
-}
-
-.thr-toast-up { border-left-color: #5aa86a; }
-.thr-toast-down { border-left-color: #c25a6a; }
-.thr-toast-mixed { border-left-color: var(--SmartThemeQuoteColor); }
-.thr-toast-info { border-left-color: #5a8fc2; }
-
-.thr-toast-close {
-    position: absolute;
-    top: 7px;
-    right: 9px;
-    font-size: 0.75rem;
-    opacity: 0.45;
-    transition: opacity 0.15s ease;
-}
-
-.thr-toast:hover .thr-toast-close {
-    opacity: 1;
-}
-
-.thr-toast-title {
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    opacity: 0.6;
-}
-
-.thr-toast-title i {
-    margin-right: 4px;
-    color: var(--SmartThemeQuoteColor);
-}
-
-.thr-toast-more {
-    font-size: 0.8em;
-    opacity: 0.6;
-}
-
-/* Сноски: ачивки — сверху по центру, с отскоком и цветом редкости (как у Hearthtide) */
-
-#thr-ach-toasts {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 10002;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    padding: calc(12px + env(safe-area-inset-top, 0px)) 10px 0;
-    pointer-events: none;
-}
-
-.thr-ach-card {
-    --thr-rar: #9fb3c8;
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    max-width: min(92vw, 400px);
-    padding: 12px 18px 12px 14px;
-    color: var(--SmartThemeBodyColor);
-    background: var(--SmartThemeBlurTintColor, rgba(20, 16, 18, 0.92));
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    border: 1px solid color-mix(in srgb, var(--thr-rar) 70%, transparent);
-    border-radius: 14px;
-    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4), 0 0 0 4px color-mix(in srgb, var(--thr-rar) 14%, transparent);
-    cursor: pointer;
-    pointer-events: auto;
-    transform: translateY(-140%);
-}
-
-.thr-ach-card.thr-in {
-    animation: thr-ach-in 0.45s cubic-bezier(0.2, 1.3, 0.4, 1) both;
-}
-
-.thr-ach-card.thr-out {
-    animation: thr-ach-out 0.3s ease-in both;
-}
-
-.thr-rar-rare { --thr-rar: #c9a659; }
-.thr-rar-legendary { --thr-rar: #d9779b; }
-
-.thr-rar-legendary {
-    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4), 0 0 0 4px color-mix(in srgb, var(--thr-rar) 18%, transparent), 0 0 26px color-mix(in srgb, var(--thr-rar) 35%, transparent);
-}
-
-.thr-ach-icon {
-    flex: none;
-    font-size: 1.9em;
-    animation: thr-ach-bob 1.4s ease-in-out infinite;
-}
-
-.thr-ach-text {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    min-width: 0;
-    line-height: 1.3;
-}
-
-.thr-ach-text > em {
-    font-size: 0.74em;
-    font-style: normal;
-    color: var(--thr-rar);
-}
-
-.thr-ach-text > b {
-    font-size: 1.05em;
-}
-
-.thr-ach-text > span {
-    font-size: 0.86em;
-    opacity: 0.8;
-    overflow-wrap: anywhere;
-}
-
-@keyframes thr-ach-in {
-    from { transform: translateY(-120%) scale(0.92); }
-    to { transform: none; }
-}
-
-@keyframes thr-ach-out {
-    from { transform: none; }
-    to { transform: translateY(-140%); }
-}
-
-@keyframes thr-ach-bob {
-    50% { transform: translateY(-3px) scale(1.1); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .thr-toast { transition: none; }
-    .thr-ach-card.thr-in, .thr-ach-card.thr-out, .thr-ach-icon { animation: none; }
-    .thr-ach-card.thr-in { transform: none; }
-}
-
-/* Ящик в списке расширений и кнопка «Открыть Thread» — как у Junket */
-
-.thr-drawer {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.thr-drawer .thr-open-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    width: 100%;
-    margin: 0 0 10px;
-    padding: 10px 14px;
-    border-radius: 12px;
-    font-weight: 600;
-}
-
-/* «Последний ответ судьи» */
-
-.thr-details summary {
-    cursor: pointer;
-}
-
-.thr-details .thr-details {
-    margin-top: 6px;
-}
-
-.thr-pre {
-    max-height: 220px;
-    margin: 6px 0 0;
-    padding: 8px 10px;
-    overflow: auto;
-    font-size: 0.82em;
-    white-space: pre-wrap;
-    word-break: break-word;
-    background: rgba(0, 0, 0, 0.25);
-    border-radius: 8px;
-}
-
-.thr-pre:empty {
-    display: none;
-}
-
-/* 🎲 Иконка у поля ввода */
-
-#leftSendForm > #thr-dice-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    /* как у соседних иконок расширений, а не как у крупных кнопок таверны */
-    font-size: calc(var(--mainFontSize, 15px) * 1.15);
-    cursor: pointer;
-    opacity: 0.75;
-    transition: opacity 0.15s, color 0.15s;
-}
-
-#leftSendForm > #thr-dice-btn:hover {
-    opacity: 1;
-}
-
-/* Бросок заряжен — иконка подсвечена, пока бот не получил исход */
-#leftSendForm > #thr-dice-btn.thr-armed {
-    color: var(--SmartThemeQuoteColor);
-    opacity: 1;
-    text-shadow: 0 0 8px color-mix(in srgb, var(--SmartThemeQuoteColor) 60%, transparent);
-}
-
-/* 🎲 Окошко проверки — над полем ввода */
-
-#thr-dice-pop {
-    position: fixed;
-    z-index: 10000;
-    display: none;
-    flex-direction: column;
-    gap: 8px;
-    width: min(360px, calc(100vw - 16px));
-    padding: 12px 14px;
-    color: var(--SmartThemeBodyColor);
-    background: color-mix(in srgb, var(--SmartThemeBlurTintColor) 94%, transparent);
-    backdrop-filter: blur(var(--SmartThemeBlurStrength, 12px));
-    -webkit-backdrop-filter: blur(var(--SmartThemeBlurStrength, 12px));
-    border: 1px solid var(--SmartThemeBorderColor);
-    border-radius: 12px;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
-}
-
-#thr-dice-pop.thr-open {
-    display: flex;
-}
-
-.thr-pop-title {
-    font-weight: 700;
-}
-
-.thr-pop-title i {
-    margin-right: 4px;
-    color: var(--SmartThemeQuoteColor);
-}
-
-.thr-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-}
-
-.thr-chip-btn {
-    padding: 4px 10px;
-    color: inherit;
-    font: inherit;
-    font-size: 0.9em;
-    background: transparent;
-    border: 1px solid var(--SmartThemeBorderColor);
-    border-radius: 999px;
-    cursor: pointer;
-}
-
-.thr-chip-btn i {
-    font-style: normal;
-    opacity: 0.6;
-}
-
-.thr-chip-btn.thr-on,
-.thr-seg button.thr-on {
-    border-color: var(--SmartThemeQuoteColor);
-    background: color-mix(in srgb, var(--SmartThemeQuoteColor) 20%, transparent);
-}
-
-.thr-seg {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 4px;
-}
-
-.thr-seg button {
-    padding: 5px 4px;
-    color: inherit;
-    font: inherit;
-    font-size: 0.85em;
-    background: transparent;
-    border: 1px solid var(--SmartThemeBorderColor);
-    border-radius: 8px;
-    cursor: pointer;
-}
-
-#thr-dice-pop .menu_button.thr-wide {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    width: 100%;
-    margin: 0;
-    padding: 8px 12px;
-    border-radius: 10px;
-}
-
-.thr-roll-btn {
-    font-weight: 600;
-}
-
-.thr-roll-spin {
-    animation: thr-spin 0.6s linear infinite;
-}
-
-.thr-roll {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.thr-die {
-    display: flex;
-    flex: none;
-    align-items: center;
-    justify-content: center;
-    width: 48px;
-    height: 48px;
-    font: 700 22px Georgia, serif;
-    border: 2px solid;
-    border-radius: 12px;
-}
-
-.thr-die.thr-good {
-    color: #6fbf8b;
-}
-
-.thr-die.thr-bad {
-    color: #d9778b;
-}
-
-/* ---------- Этап 5: вкладки ---------- */
+/* Главы */
 
 .thr-chapter {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 4px 10px;
+    gap: 4px 12px;
 }
 
 .thr-ch-title {
@@ -752,47 +413,48 @@
     min-width: 0;
 }
 
-.thr-ch-title .thr-x {
-    opacity: 0.4;
-}
-
 .thr-ch-input {
     flex: 1;
     margin: 0;
 }
 
 .thr-ch-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--thr-text-3);
     font-size: 0.85em;
-    opacity: 0.65;
+    font-variant-numeric: tabular-nums;
 }
 
 .thr-ch-close {
     padding: 4px 12px;
-    color: inherit;
+    color: var(--thr-text-2);
     font: inherit;
     font-size: 0.85em;
     background: transparent;
-    border: 1px solid var(--SmartThemeBorderColor);
+    border: 1px solid var(--thr-line-2);
     border-radius: 999px;
     cursor: pointer;
-    opacity: 0.8;
+    transition: color 150ms var(--thr-ease), background-color 150ms var(--thr-ease), border-color 150ms var(--thr-ease);
 }
 
-.thr-ch-close:hover {
-    opacity: 1;
+.thr-ch-close:hover,
+.thr-ch-close:focus-visible {
+    color: var(--thr-text);
 }
 
 .thr-ch-close.thr-armed {
-    border-color: var(--SmartThemeQuoteColor);
-    background: color-mix(in srgb, var(--SmartThemeQuoteColor) 18%, transparent);
-    opacity: 1;
+    color: var(--thr-text);
+    border-color: var(--thr-accent);
+    background: var(--thr-accent-bg);
 }
 
 .thr-ch-divider {
-    margin: 6px 0 2px;
-    font-size: 0.78em;
+    margin: 8px 0 4px;
+    color: var(--thr-text-3);
+    font-size: 0.8em;
     text-align: center;
-    opacity: 0.55;
 }
 
 .thr-ch-divider::before,
@@ -810,14 +472,14 @@
 .thr-spark {
     display: block;
     width: 100%;
-    height: 34px;
-    margin-top: 2px;
+    height: 32px;
+    margin-top: 4px;
     overflow: visible;
 }
 
 .thr-spark polyline {
     fill: none;
-    stroke: var(--SmartThemeQuoteColor);
+    stroke: var(--thr-accent);
     stroke-width: 1.6;
     stroke-linejoin: round;
     stroke-linecap: round;
@@ -825,81 +487,56 @@
 }
 
 .thr-spark-zero {
-    stroke: var(--SmartThemeBorderColor);
+    stroke: var(--thr-line-2);
     stroke-width: 1;
     stroke-dasharray: 3 3;
     vector-effect: non-scaling-stroke;
 }
 
-/* Строки с кнопками ✕ / ✓ */
-
-.thr-feed-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-}
-
-.thr-feed-main {
-    flex: 1;
-    min-width: 0;
-}
-
-.thr-row-btns {
-    display: flex;
-    flex: none;
-    gap: 2px;
-}
+/* Маленькие кнопки ✕ / ✓ в строках */
 
 .thr-x {
     display: flex;
     flex: none;
     align-items: center;
     justify-content: center;
-    width: 26px;
-    height: 26px;
+    width: 24px;
+    height: 24px;
     padding: 0;
-    color: inherit;
+    color: var(--thr-text-3);
     font-size: 0.8em;
     background: transparent;
     border: none;
     border-radius: 6px;
     cursor: pointer;
-    opacity: 0.35;
-    transition: opacity 0.15s, background 0.15s;
+    opacity: 0.6;
+    transition: opacity 150ms var(--thr-ease), color 150ms var(--thr-ease), background-color 150ms var(--thr-ease);
 }
 
 .thr-row:hover .thr-x,
 .thr-feed-row:hover .thr-x,
 .thr-facts li:hover .thr-x,
+.thr-skill:hover .thr-x,
 .thr-x:focus-visible {
-    opacity: 0.8;
+    opacity: 1;
 }
 
 .thr-x:hover {
+    color: var(--thr-text);
+    background: var(--thr-surface-2);
     opacity: 1;
-    background: rgba(127, 127, 127, 0.18);
 }
 
 .thr-x.thr-ok:hover {
-    color: #6fbf8b;
+    color: var(--thr-good);
 }
 
-.thr-sub {
-    margin-top: 2px;
-    font-size: 0.78em;
-    opacity: 0.5;
-}
-
-.thr-faded {
-    opacity: 0.55;
-}
-
-/* Отношения */
+/* ---------- Отношения ---------- */
 
 .thr-rel-head {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
 }
 
 .thr-ava {
@@ -907,7 +544,7 @@
     width: 40px;
     height: 40px;
     object-fit: cover;
-    border: 1px solid var(--SmartThemeBorderColor);
+    border: 1px solid var(--thr-line-2);
     border-radius: 50%;
 }
 
@@ -915,8 +552,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: 700;
-    background: color-mix(in srgb, var(--SmartThemeQuoteColor) 18%, transparent);
+    color: var(--thr-text-2);
+    font-weight: 500;
+    background: var(--thr-surface-2);
+}
+
+span.thr-ava {
+    display: flex;
 }
 
 .thr-rel-name {
@@ -928,16 +570,43 @@
 
 .thr-rel-val {
     font-size: 1.25em;
+    font-variant-numeric: tabular-nums;
+}
+
+.thr-rel-title {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+}
+
+.thr-rel-title .thr-x {
+    opacity: 0;
+}
+
+.thr-rel:hover .thr-rel-title .thr-x,
+.thr-rel-title .thr-x:focus-visible,
+.thr-rel-title .thr-x.thr-armed {
+    opacity: 1;
+}
+
+.thr-rel-title .thr-x.thr-armed {
+    color: var(--thr-bad);
+}
+
+.thr-name-input {
+    margin: 0;
+    padding: 2px 8px;
 }
 
 .thr-facts {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 4px;
     margin: 4px 0 0;
-    padding: 6px 0 0;
+    padding: 8px 0 0;
     list-style: none;
-    border-top: 1px dashed var(--SmartThemeBorderColor);
+    border-top: 1px dashed var(--thr-line-2);
 }
 
 .thr-facts li {
@@ -945,82 +614,11 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 8px;
-    font-size: 0.88em;
+    font-size: 0.9em;
 }
 
 .thr-facts li i.fa-user-secret {
-    opacity: 0.6;
-}
-
-/* Навыки */
-
-.thr-star {
-    color: #c9a659;
-}
-
-.thr-pane .menu_button.thr-wide-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    width: 100%;
-    margin: 0;
-    padding: 9px 14px;
-    font-weight: 600;
-    border-radius: 12px;
-}
-
-/* Ачивки */
-
-.thr-ach-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 8px;
-}
-
-.thr-ach {
-    --thr-rar: #9fb3c8;
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 10px 12px;
-    border: 1px solid color-mix(in srgb, var(--thr-rar) 55%, transparent);
-    border-radius: 10px;
-    background: color-mix(in srgb, var(--thr-rar) 8%, transparent);
-}
-
-.thr-ach-ico {
-    flex: none;
-    font-size: 1.5em;
-    line-height: 1.2;
-}
-
-.thr-ach-body {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    min-width: 0;
-    line-height: 1.3;
-}
-
-.thr-ach-rar {
-    font-size: 0.78em;
-    color: var(--thr-rar);
-}
-
-.thr-ach.thr-sealed {
-    border-style: dashed;
-    background: transparent;
-    opacity: 0.55;
-}
-
-.thr-ach.thr-sealed .thr-ach-ico {
-    font-size: 1.1em;
-    opacity: 0.6;
-}
-
-.thr-ach.thr-sealed .thr-ach-body {
-    font-size: 0.88em;
+    color: var(--thr-text-3);
 }
 
 /* Аватарка — кнопка выбора */
@@ -1034,13 +632,10 @@
     cursor: pointer;
 }
 
-.thr-ava-btn:hover .thr-ava {
-    outline: 2px solid var(--SmartThemeQuoteColor);
+.thr-ava-btn:hover .thr-ava,
+.thr-ava-btn:focus-visible .thr-ava {
+    outline: 2px solid var(--thr-accent);
     outline-offset: 1px;
-}
-
-span.thr-ava {
-    display: flex;
 }
 
 .thr-ava-menu {
@@ -1049,24 +644,23 @@ span.thr-ava {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    width: 300px;
+    width: min(300px, calc(100vw - 16px));
     padding: 12px;
-    color: var(--SmartThemeBodyColor);
-    background: color-mix(in srgb, var(--SmartThemeBlurTintColor) 96%, transparent);
-    backdrop-filter: blur(var(--SmartThemeBlurStrength, 12px));
-    border: 1px solid var(--SmartThemeBorderColor);
-    border-radius: 12px;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    color: var(--thr-text);
+    background: var(--SmartThemeBlurTintColor);
+    border: 1px solid var(--thr-line-2);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px var(--thr-shadow);
 }
 
 .thr-ava-menu-title {
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .thr-ava-pick {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 6px;
+    gap: 8px;
     max-height: 200px;
     overflow-y: auto;
 }
@@ -1075,20 +669,21 @@ span.thr-ava {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 3px;
+    gap: 4px;
     padding: 4px;
     color: inherit;
     font: inherit;
-    font-size: 0.72em;
+    font-size: 0.75em;
     background: transparent;
     border: 1px solid transparent;
-    border-radius: 8px;
+    border-radius: 6px;
     cursor: pointer;
 }
 
 .thr-ava-pick button:hover,
+.thr-ava-pick button:focus-visible,
 .thr-ava-pick button.thr-on {
-    border-color: var(--SmartThemeQuoteColor);
+    border-color: var(--thr-accent);
 }
 
 .thr-ava-pick img {
@@ -1099,8 +694,8 @@ span.thr-ava {
 }
 
 .thr-ava-pick small {
+    color: var(--thr-text-3);
     font-size: 0.85em;
-    opacity: 0.55;
 }
 
 .thr-ava-pick span {
@@ -1113,285 +708,16 @@ span.thr-ava {
 .thr-ava-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 8px;
 }
 
 .thr-ava-actions .menu_button {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     width: fit-content;
     margin: 0;
     white-space: nowrap;
-}
-
-/* ---------- Этап 6: скан истории ---------- */
-
-.thr-scan .thr-card-head i {
-    margin-right: 4px;
-    color: var(--SmartThemeQuoteColor);
-}
-
-.thr-btn-row {
-    display: flex;
-    gap: 8px;
-}
-
-.thr-btn-row .menu_button.thr-wide-btn {
-    flex: 1;
-}
-
-.thr-pane .menu_button.thr-wide-btn.thr-armed,
-.thr-set .menu_button.thr-wide-btn.thr-armed {
-    border-color: var(--SmartThemeQuoteColor);
-    background: color-mix(in srgb, var(--SmartThemeQuoteColor) 18%, transparent);
-}
-
-.thr-hint-btn {
-    margin-top: 8px !important;
-}
-
-.thr-set .menu_button.thr-wide-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    width: 100%;
-    margin: 0;
-    padding: 9px 14px;
-    font-weight: 600;
-    border-radius: 12px;
-}
-
-.thr-range {
-    flex: none;
-    width: 150px;
-    accent-color: var(--SmartThemeQuoteColor);
-}
-
-/* ---------- Этап 7: жанры, навыки, режимы ---------- */
-
-.thr-genre {
-    padding: 10px 12px;
-    border: 1px solid var(--SmartThemeBorderColor);
-    border-radius: 10px;
-}
-
-.thr-genre summary {
-    cursor: pointer;
-}
-
-.thr-genre[open] summary {
-    margin-bottom: 6px;
-}
-
-.thr-genre .thr-chips {
-    margin: 6px 0;
-}
-
-.thr-skill-right {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.thr-skill:hover .thr-x {
-    opacity: 0.8;
-}
-
-.thr-add-row {
-    display: flex;
-    gap: 6px;
-}
-
-.thr-add-row .text_pole {
-    flex: 1;
-    margin: 0;
-}
-
-.thr-add-row .menu_button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 38px;
-    margin: 0;
-}
-
-.thr-mode-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 6px 0;
-}
-
-.thr-seg.thr-seg3 {
-    flex: none;
-    grid-template-columns: repeat(3, 1fr);
-    width: 190px;
-}
-
-/* Своё имя и «убрать персонажа» */
-
-.thr-rel-title {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    min-width: 0;
-}
-
-.thr-rel-title .thr-x {
-    width: 22px;
-    height: 22px;
-    opacity: 0;
-}
-
-.thr-rel:hover .thr-rel-title .thr-x,
-.thr-rel-title .thr-x:focus-visible,
-.thr-rel-title .thr-x.thr-armed {
-    opacity: 0.7;
-}
-
-.thr-rel-title .thr-x.thr-armed {
-    color: #d9778b;
-    opacity: 1;
-}
-
-.thr-name-input {
-    margin: 0;
-    padding: 2px 6px;
-}
-
-/* Lifeweaver во вкладке «Метки» */
-
-.thr-lw-chip {
-    padding: 3px 10px;
-    font-size: 0.85em;
-    opacity: 1;
-}
-
-/* ---------- Этап 9: астро ---------- */
-
-.thr-astro-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-    padding: 8px 10px;
-    color: inherit;
-    font: inherit;
-    text-align: left;
-    background: rgba(127, 127, 127, 0.06);
-    border: 1px solid var(--SmartThemeBorderColor);
-    border-radius: 10px;
-    cursor: pointer;
-}
-
-.thr-astro-row:hover {
-    border-color: var(--SmartThemeQuoteColor);
-}
-
-.thr-astro-row-main {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    min-width: 0;
-}
-
-.thr-astro-head {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.thr-ava.thr-ava-lg {
-    width: 64px;
-    height: 64px;
-    font-size: 1.4em;
-}
-
-.thr-astro-name {
-    font-size: 1.1em;
-}
-
-.thr-astro-sec {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-top: 6px;
-    font-size: 0.78em;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    opacity: 0.6;
-}
-
-.thr-astro-text {
-    line-height: 1.5;
-    text-align: justify;
-}
-
-.thr-x.thr-info {
-    width: 20px;
-    height: 20px;
-    font-size: 0.85em;
-    font-weight: 700;
-    text-transform: none;
-    border: 1px solid var(--SmartThemeBorderColor);
-    border-radius: 50%;
-    opacity: 0.7;
-}
-
-.thr-astro-info {
-    padding: 6px 10px;
-    border-left: 2px solid var(--SmartThemeQuoteColor);
-}
-
-.thr-chip.thr-rx {
-    color: #d9778b;
-    border-color: #d9778b;
-}
-
-.thr-astro-form {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.thr-astro-form .text_pole {
-    margin: 0;
-}
-
-.thr-astro-fx {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.thr-astro-fx[open] > *:not(summary) {
-    margin-top: 6px;
-}
-
-.thr-astro-boxes {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 2px 12px;
-}
-
-.thr-pane .menu_button.thr-back {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    width: fit-content;
-    margin: 0;
-}
-
-.thr-bday {
-    display: inline;
-}
-
-.thr-bday-today b {
-    color: var(--SmartThemeQuoteColor);
 }
 
 /* Карта связей (по Storyline) */
@@ -1402,7 +728,7 @@ span.thr-ava {
 
 .thr-seg button i {
     margin-right: 4px;
-    opacity: 0.75;
+    color: var(--thr-text-3);
 }
 
 .thr-map-zoom {
@@ -1415,14 +741,15 @@ span.thr-ava {
     width: auto;
     min-width: 32px;
     margin: 0;
-    padding: 4px 9px;
+    padding: 4px 8px;
 }
 
 .thr-map-wrap {
+    position: relative;
     overflow: hidden;
-    border: 1px solid var(--SmartThemeBorderColor);
+    border: 1px solid var(--thr-line);
     border-radius: 10px;
-    background: rgba(127, 127, 127, 0.05);
+    background: var(--thr-surface);
 }
 
 .thr-map {
@@ -1456,20 +783,21 @@ span.thr-ava {
 
 .thr-map-me-ring {
     fill: var(--SmartThemeBlurTintColor);
-    stroke: var(--SmartThemeQuoteColor);
+    stroke: var(--thr-accent);
     stroke-width: 2.5;
 }
 
+/* Размеры подписей карты — в единицах самого SVG: масштабируются вместе с картой */
 .thr-map-ini {
-    fill: var(--SmartThemeBodyColor);
+    fill: var(--thr-text-2);
     font-size: 14px;
-    font-weight: 700;
+    font-weight: 500;
     text-anchor: middle;
     pointer-events: none;
 }
 
 .thr-map-label {
-    fill: var(--SmartThemeBodyColor);
+    fill: var(--thr-text);
     font-size: 10px;
     text-anchor: middle;
     paint-order: stroke;
@@ -1480,12 +808,32 @@ span.thr-ava {
 }
 
 .thr-map-label-me {
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .thr-map-pair:hover path:last-child {
     opacity: 1;
-    filter: brightness(1.2);
+}
+
+/* Мини-окошко на карте — у места тапа */
+
+.thr-card.thr-map-pop {
+    position: absolute;
+    z-index: 2;
+    box-sizing: border-box;
+    gap: 4px;
+    width: max-content;
+    max-width: min(240px, calc(100% - 12px));
+    padding: 8px 12px;
+    font-size: 0.9em;
+    background: var(--SmartThemeBlurTintColor);
+    border-color: var(--thr-line-2);
+    box-shadow: 0 8px 24px var(--thr-shadow);
+    visibility: hidden;
+}
+
+.thr-card.thr-map-pop.thr-placed {
+    visibility: visible;
 }
 
 .thr-map-pop-head {
@@ -1498,26 +846,33 @@ span.thr-ava {
 .thr-map-pop-who {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
 
 .thr-ava.thr-ava-sm {
-    width: 34px;
-    height: 34px;
+    width: 32px;
+    height: 32px;
+}
+
+.thr-map-pop .menu_button.thr-wide-btn {
+    width: 100%;
+    margin: 4px 0 0;
+    justify-content: center;
 }
 
 .thr-map-legend {
     display: flex;
     flex-wrap: wrap;
     gap: 4px 12px;
-    margin: 2px 0 6px;
+    margin: 4px 0 8px;
+    color: var(--thr-text-2);
     font-size: 0.85em;
 }
 
 .thr-map-legend span {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
 }
 
 .thr-map-legend i {
@@ -1527,52 +882,768 @@ span.thr-ava {
     border-radius: 2px;
 }
 
+/* Карточка, открытая с карты: короткая подсветка рамкой */
+
 .thr-card.thr-flash {
-    animation: thr-flash 1.8s ease-out;
+    animation: thr-flash 1.6s var(--thr-ease);
 }
 
 @keyframes thr-flash {
     0%, 30% {
-        border-color: var(--SmartThemeQuoteColor);
-        box-shadow: 0 0 0 2px color-mix(in srgb, var(--SmartThemeQuoteColor) 45%, transparent);
+        border-color: var(--thr-accent);
+        box-shadow: 0 0 0 1px var(--thr-accent);
     }
     100% {
         box-shadow: 0 0 0 0 transparent;
     }
 }
 
-/* Мини-окошко на карте — у места тапа */
+/* ---------- Навыки ---------- */
 
-.thr-map-wrap {
-    position: relative;
+.thr-star {
+    color: var(--thr-accent);
 }
 
-.thr-card.thr-map-pop {
-    position: absolute;
-    box-sizing: border-box;
-    z-index: 2;
-    gap: 4px;
-    width: max-content;
-    max-width: min(240px, calc(100% - 12px));
-    padding: 9px 11px;
-    font-size: 0.92em;
-    background: var(--SmartThemeBlurTintColor);
-    backdrop-filter: blur(var(--SmartThemeBlurStrength, 10px));
-    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.4);
-    visibility: hidden;
-}
-
-.thr-card.thr-map-pop.thr-placed {
-    visibility: visible;
-}
-
-.thr-map-pop .menu_button.thr-wide-btn {
-    width: 100%;
-    margin: 4px 0 0;
+.thr-pane .menu_button.thr-wide-btn,
+.thr-set .menu_button.thr-wide-btn {
+    display: flex;
+    align-items: center;
     justify-content: center;
+    gap: 8px;
+    width: 100%;
+    margin: 0;
+    padding: 8px 16px;
 }
 
-/* ПК: окно пошире, как у Junket — 70% ширины и 82% высоты экрана */
+.thr-pane .menu_button.thr-wide-btn.thr-armed,
+.thr-set .menu_button.thr-wide-btn.thr-armed {
+    /* двухкликовое подтверждение: только акцентная обводка, фон и форма остаются от темы */
+    box-shadow: inset 0 0 0 1px var(--thr-accent);
+}
+
+.thr-window .menu_button.thr-hint-btn {
+    margin-top: 8px;
+}
+
+.thr-btn-row {
+    display: flex;
+    gap: 8px;
+}
+
+.thr-btn-row .menu_button.thr-wide-btn {
+    flex: 1;
+}
+
+.thr-skill-right {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.thr-add-row {
+    display: flex;
+    gap: 8px;
+}
+
+.thr-add-row .text_pole {
+    flex: 1;
+    margin: 0;
+}
+
+.thr-add-row .menu_button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    margin: 0;
+}
+
+/* Жанр и сворачиваемые блоки во вкладках */
+
+.thr-genre {
+    padding: 8px 12px;
+    border: 1px solid var(--thr-line);
+    border-radius: 10px;
+}
+
+.thr-genre summary {
+    cursor: pointer;
+}
+
+.thr-genre summary b {
+    font-weight: 500;
+}
+
+.thr-genre summary i {
+    margin-right: 4px;
+    color: var(--thr-text-3);
+}
+
+.thr-genre[open] summary {
+    margin-bottom: 8px;
+}
+
+.thr-genre .thr-chips {
+    margin: 8px 0;
+}
+
+.thr-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.thr-chip-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px;
+    color: var(--thr-text-2);
+    font: inherit;
+    font-size: 0.9em;
+    background: transparent;
+    border: 1px solid var(--thr-line-2);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: color 150ms var(--thr-ease), background-color 150ms var(--thr-ease), border-color 150ms var(--thr-ease);
+}
+
+.thr-chip-btn:hover,
+.thr-chip-btn:focus-visible {
+    color: var(--thr-text);
+}
+
+.thr-chip-btn i {
+    color: var(--thr-text-3);
+    font-style: normal;
+}
+
+.thr-chip-btn.thr-on,
+.thr-seg button.thr-on {
+    color: var(--thr-text);
+    border-color: var(--thr-accent);
+    background: var(--thr-accent-bg);
+}
+
+.thr-seg {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+}
+
+.thr-seg button {
+    padding: 4px;
+    color: var(--thr-text-2);
+    font: inherit;
+    font-size: 0.85em;
+    background: transparent;
+    border: 1px solid var(--thr-line-2);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: color 150ms var(--thr-ease), background-color 150ms var(--thr-ease), border-color 150ms var(--thr-ease);
+}
+
+.thr-seg button:hover,
+.thr-seg button:focus-visible {
+    color: var(--thr-text);
+}
+
+/* ---------- Метки: Lifeweaver ---------- */
+
+.thr-lw-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px;
+    font-size: 0.85em;
+}
+
+.thr-lw-chip i {
+    color: var(--thr-text-3);
+}
+
+/* Иконки перед названиями меток и обещаний */
+
+.thr-mark-ico {
+    margin-right: 4px;
+    color: var(--thr-text-3);
+}
+
+/* ---------- Ачивки ---------- */
+
+.thr-ach-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 8px;
+}
+
+.thr-ach {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid color-mix(in srgb, var(--thr-rar) 55%, transparent);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--thr-rar) 8%, transparent);
+}
+
+.thr-ach-ico {
+    flex: none;
+    font-size: 1.5em;
+    line-height: 1.2;
+}
+
+.thr-ach-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    line-height: 1.3;
+}
+
+.thr-ach-rar {
+    color: var(--thr-rar);
+    font-size: 0.8em;
+}
+
+.thr-ach.thr-sealed {
+    border-style: dashed;
+    background: transparent;
+    opacity: 0.55;
+}
+
+.thr-ach.thr-sealed .thr-ach-ico {
+    font-size: 1.1em;
+    opacity: 0.6;
+}
+
+.thr-ach.thr-sealed .thr-ach-body {
+    font-size: 0.9em;
+}
+
+/* ---------- Скан истории ---------- */
+
+.thr-scan .thr-card-head i {
+    margin-right: 4px;
+    color: var(--thr-accent);
+}
+
+.thr-set-row .thr-range {
+    flex: none;
+    width: 150px;
+    accent-color: var(--thr-accent);
+}
+
+/* ---------- Астро ---------- */
+
+.thr-astro-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 8px 12px;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    background: var(--thr-surface);
+    border: 1px solid var(--thr-line);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: border-color 150ms var(--thr-ease), background-color 150ms var(--thr-ease);
+}
+
+.thr-astro-row:hover,
+.thr-astro-row:focus-visible {
+    border-color: var(--thr-line-2);
+    background: var(--thr-surface-2);
+}
+
+.thr-astro-row-main {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.thr-astro-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.thr-ava.thr-ava-lg {
+    width: 64px;
+    height: 64px;
+    font-size: 1.4em;
+}
+
+.thr-astro-name {
+    font-size: 1.1em;
+}
+
+.thr-astro-sec {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    color: var(--thr-text-3);
+    font-size: 0.85em;
+    font-weight: 500;
+}
+
+.thr-astro-text {
+    line-height: 1.5;
+}
+
+.thr-x.thr-info {
+    width: 20px;
+    height: 20px;
+    font-size: 0.85em;
+    font-weight: 500;
+    border: 1px solid var(--thr-line-2);
+    border-radius: 50%;
+    opacity: 1;
+}
+
+.thr-astro-info {
+    padding: 4px 12px;
+    border-left: 2px solid var(--thr-accent);
+}
+
+.thr-chip.thr-rx {
+    color: var(--thr-bad);
+    border-color: color-mix(in srgb, var(--thr-bad) 60%, transparent);
+}
+
+.thr-astro-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.thr-astro-form .text_pole {
+    margin: 0;
+}
+
+.thr-astro-fx {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.thr-astro-fx[open] > *:not(summary) {
+    margin-top: 8px;
+}
+
+.thr-astro-boxes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 12px;
+}
+
+.thr-pane .menu_button.thr-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    width: fit-content;
+    margin: 0;
+}
+
+.thr-bday {
+    display: inline;
+}
+
+.thr-bday i {
+    margin-right: 4px;
+    color: var(--thr-text-3);
+}
+
+.thr-bday-today b,
+.thr-bday-ico {
+    color: var(--thr-accent);
+}
+
+/* ---------- Настройки ---------- */
+
+.thr-set {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* Группы — на родных сворачиваемых блоках таверны; свои здесь только отступы внутри */
+.thr-set > .inline-drawer > .inline-drawer-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 0 12px;
+}
+
+.thr-set-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.thr-label {
+    font-size: 0.95em;
+}
+
+.thr-num {
+    flex: none;
+    width: 150px;
+    margin: 0;
+}
+
+.thr-danger {
+    align-self: flex-start;
+}
+
+.thr-mode-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 4px 0;
+}
+
+.thr-seg.thr-seg3 {
+    flex: none;
+    grid-template-columns: repeat(3, 1fr);
+    width: 192px;
+}
+
+/* «Последний ответ судьи» */
+
+.thr-details summary {
+    cursor: pointer;
+}
+
+.thr-details .thr-details {
+    margin-top: 8px;
+}
+
+.thr-pre {
+    max-height: 220px;
+    margin: 8px 0 0;
+    padding: 8px 12px;
+    overflow: auto;
+    font-size: 0.8em;
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: var(--thr-surface-2);
+    border-radius: 6px;
+}
+
+.thr-pre:empty {
+    display: none;
+}
+
+/* Ящик в списке расширений и кнопка «Открыть Thread» — как у Junket */
+
+.thr-drawer {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.thr-drawer .thr-open-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    margin: 0 0 8px;
+    padding: 8px 16px;
+}
+
+/* ---------- Кубик: иконка у поля ввода и окошко проверки ---------- */
+
+#leftSendForm > #thr-dice-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* как у соседних иконок расширений, а не как у крупных кнопок таверны */
+    font-size: calc(var(--mainFontSize, 15px) * 1.15);
+    cursor: pointer;
+    opacity: 0.75;
+    transition: opacity 150ms var(--thr-ease), color 150ms var(--thr-ease);
+}
+
+#leftSendForm > #thr-dice-btn:hover {
+    opacity: 1;
+}
+
+/* Бросок заряжен — иконка акцентного цвета, пока бот не получил исход */
+#leftSendForm > #thr-dice-btn.thr-armed {
+    color: var(--thr-accent);
+    opacity: 1;
+}
+
+#thr-dice-pop {
+    position: fixed;
+    z-index: 10000;
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    box-sizing: border-box;
+    width: min(360px, calc(100vw - 16px));
+    padding: 12px 16px;
+    color: var(--thr-text);
+    background: var(--SmartThemeBlurTintColor);
+    border: 1px solid var(--thr-line-2);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px var(--thr-shadow);
+}
+
+#thr-dice-pop.thr-open {
+    display: flex;
+}
+
+.thr-pop-title {
+    font-weight: 600;
+}
+
+.thr-pop-title i {
+    margin-right: 4px;
+    color: var(--thr-accent);
+}
+
+#thr-dice-pop .menu_button.thr-wide {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    margin: 0;
+    padding: 8px 12px;
+}
+
+.thr-roll-spin {
+    animation: thr-spin 0.6s linear infinite;
+}
+
+.thr-roll {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.thr-roll .thr-note i {
+    margin-right: 4px;
+}
+
+.thr-die {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    font-size: 1.4em;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    border: 2px solid;
+    border-radius: 10px;
+}
+
+.thr-die.thr-good {
+    color: var(--thr-good);
+}
+
+.thr-die.thr-bad {
+    color: var(--thr-bad);
+}
+
+/* ---------- Сноски: отметки — стопкой в правом верхнем углу (как у Lifeweaver) ---------- */
+
+#thr-toasts {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 10001;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+}
+
+.thr-toast {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    box-sizing: border-box;
+    max-width: min(340px, calc(100vw - 32px));
+    padding: 8px 32px 8px 12px;
+    color: var(--thr-text);
+    font-size: 0.85em;
+    background: var(--SmartThemeBlurTintColor);
+    border: 1px solid var(--thr-line-2);
+    border-left: 3px solid var(--thr-accent);
+    border-radius: 6px;
+    box-shadow: 0 8px 24px var(--thr-shadow);
+    cursor: pointer;
+    pointer-events: auto;
+    opacity: 0;
+    transform: translateX(8px);
+    transition: opacity 200ms var(--thr-ease), transform 200ms var(--thr-ease);
+}
+
+.thr-toast.thr-in {
+    opacity: 1;
+    transform: none;
+}
+
+.thr-toast-up { border-left-color: var(--thr-good); }
+.thr-toast-down { border-left-color: var(--thr-bad); }
+.thr-toast-mixed { border-left-color: var(--thr-accent); }
+.thr-toast-info { border-left-color: var(--thr-text-3); }
+
+.thr-toast-close {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    color: var(--thr-text-3);
+    font-size: 0.9em;
+    transition: color 150ms var(--thr-ease);
+}
+
+.thr-toast:hover .thr-toast-close {
+    color: var(--thr-text);
+}
+
+.thr-toast-title {
+    color: var(--thr-text-3);
+    font-size: 0.85em;
+    font-weight: 500;
+}
+
+.thr-toast-title i {
+    margin-right: 4px;
+    color: var(--thr-accent);
+}
+
+.thr-toast-more {
+    color: var(--thr-text-3);
+    font-size: 0.9em;
+}
+
+/* ---------- Сноски: ачивки — сверху по центру, с цветом редкости (как у Hearthtide) ---------- */
+
+#thr-ach-toasts {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10002;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 8px 0;
+    pointer-events: none;
+}
+
+.thr-ach-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-sizing: border-box;
+    max-width: min(92vw, 400px);
+    padding: 12px 20px 12px 16px;
+    color: var(--thr-text);
+    background: var(--SmartThemeBlurTintColor);
+    border: 1px solid color-mix(in srgb, var(--thr-rar) 70%, transparent);
+    border-radius: 14px;
+    box-shadow: 0 8px 24px var(--thr-shadow);
+    cursor: pointer;
+    pointer-events: auto;
+    opacity: 0;
+}
+
+/* Появление — короткий fade с опусканием на 8px, без пружины */
+.thr-ach-card.thr-in {
+    animation: thr-ach-in 260ms var(--thr-ease) both;
+}
+
+.thr-ach-card.thr-out {
+    animation: thr-ach-out 200ms var(--thr-ease) both;
+}
+
+.thr-ach-icon {
+    flex: none;
+    font-size: 1.9em;
+}
+
+.thr-ach-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    line-height: 1.3;
+}
+
+.thr-ach-text > em {
+    color: var(--thr-rar);
+    font-size: 0.75em;
+    font-style: normal;
+}
+
+.thr-ach-text > b {
+    font-size: 1.05em;
+    font-weight: 600;
+}
+
+.thr-ach-text > span {
+    color: var(--thr-text-2);
+    font-size: 0.85em;
+    overflow-wrap: anywhere;
+}
+
+@keyframes thr-ach-in {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: none; }
+}
+
+@keyframes thr-ach-out {
+    from { opacity: 1; transform: none; }
+    to { opacity: 0; transform: translateY(-8px); }
+}
+
+/* ---------- Без лишнего движения ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+    .thr-overlay.thr-open .thr-window,
+    .thr-card.thr-flash {
+        animation: none;
+    }
+
+    .thr-toast,
+    .thr-tab,
+    .thr-icon-btn,
+    .thr-x,
+    .thr-chip-btn,
+    .thr-seg button,
+    .thr-ch-close,
+    .thr-astro-row,
+    .thr-toast-close,
+    #leftSendForm > #thr-dice-btn {
+        transition: none;
+    }
+
+    .thr-ach-card.thr-in,
+    .thr-ach-card.thr-out {
+        animation: none;
+    }
+
+    .thr-ach-card.thr-in {
+        opacity: 1;
+    }
+}
+
+/* ---------- ПК: окно пошире, как у Junket — 70% ширины и 82% высоты экрана ---------- */
 
 @media (min-width: 1001px) {
     .thr-window {
@@ -1581,7 +1652,7 @@ span.thr-ava {
     }
 }
 
-/* Любой сенсорный экран (телефон, раскрытый Фолд, планшет): окно во весь экран, без рамки */
+/* ---------- Любой сенсорный экран (телефон, раскрытый Фолд, планшет): окно во весь экран, без рамки ---------- */
 
 @media (hover: none) and (pointer: coarse) {
     .thr-overlay {
@@ -1596,9 +1667,15 @@ span.thr-ava {
         border: none;
         border-radius: 0;
     }
+
+    /* без наведения кнопки в строках видны всегда */
+    .thr-x,
+    .thr-rel-title .thr-x {
+        opacity: 1;
+    }
 }
 
-/* Телефон: кнопки под палец, вкладки листаются вбок */
+/* ---------- Телефон: кнопки под палец, вкладки листаются вбок, всё в колонку ---------- */
 
 @media (max-width: 600px) {
     .thr-overlay {
@@ -1615,7 +1692,7 @@ span.thr-ava {
 
     .thr-header {
         gap: 8px;
-        padding: 8px 8px 6px 14px;
+        padding: 8px 8px 8px 16px;
     }
 
     .thr-header .thr-icon-btn {
@@ -1636,13 +1713,48 @@ span.thr-ava {
 
     .thr-tab {
         flex: none;
+        padding: 8px 12px;
     }
 
     .thr-tab[data-tab="settings"] {
-        padding: 9px 13px;
+        padding: 8px 12px;
     }
 
     .thr-body {
         padding: 12px;
+    }
+
+    .thr-x {
+        width: 32px;
+        height: 32px;
+    }
+
+    /* Настройки: подпись над контролом, а не сбоку */
+    .thr-set-row,
+    .thr-mode-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+    }
+
+    .thr-num,
+    .thr-set-row .thr-range,
+    .thr-seg.thr-seg3 {
+        width: 100%;
+    }
+
+    .thr-astro-boxes {
+        grid-template-columns: 1fr;
+    }
+
+    .thr-ach-grid {
+        grid-template-columns: 1fr;
+    }
+
+    #thr-toasts {
+        top: 8px;
+        right: 8px;
+        left: 8px;
+        align-items: flex-end;
     }
 }

@@ -233,7 +233,7 @@ export function openAvatarMenu(anchor, name) {
         ${cands.length ? `<div class="thr-ava-pick">${cands.map((c, i) => `
             <button type="button" data-i="${i}" title="${escapeHtml(`${c.label} · ${c.src}`)}" class="${manual === c.url ? 'thr-on' : ''}">
                 <img src="${escapeHtml(c.url)}" alt="" loading="lazy" /><span>${escapeHtml(c.label)}</span><small>${escapeHtml(c.src)}</small>
-            </button>`).join('')}</div>` : '<div class="thr-note">В чате нет карточек и рефов Frame с картинками.</div>'}
+            </button>`).join('')}</div>` : '<div class="thr-note">В чате нет карточек и рефов Frame с картинками</div>'}
         <div class="thr-ava-actions">
             <button type="button" class="menu_button" data-act="upload"><i class="fa-solid fa-upload"></i><span>Загрузить свою</span></button>
             ${manual ? '<button type="button" class="menu_button" data-act="auto"><i class="fa-solid fa-wand-magic-sparkles"></i><span>Подбирать сама</span></button>' : ''}

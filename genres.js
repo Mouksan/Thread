@@ -12,32 +12,32 @@ const BASE_SKILLS = ['Дипломатия', 'Храбрость', 'Рассуд
 
 export const GENRES = {
     romance: {
-        icon: '💗', label: 'Романтика', skills: ['Обаяние', 'Флирт', 'Эмпатия', 'Терпение', 'Откровенность'],
+        icon: 'fa-heart', label: 'Романтика', skills: ['Обаяние', 'Флирт', 'Эмпатия', 'Терпение', 'Откровенность'],
         focus: 'romance: pay special attention to romantic tension, jealousy, confessions, trust and small gestures of care',
         ach: { 'slow-burn': 'feelings finally admitted after a long build-up', 'love-triangle': 'a love triangle became obvious' },
     },
     fantasy: {
-        icon: '🐉', label: 'Фэнтези', skills: ['Магия', 'Владение мечом', 'Знание древних', 'Выживание', 'Дипломатия'],
+        icon: 'fa-dragon', label: 'Фэнтези', skills: ['Магия', 'Владение мечом', 'Знание древних', 'Выживание', 'Дипломатия'],
         focus: 'fantasy: quests, magic, battles, ancient secrets, oaths and factions',
         ach: { 'first-spell': 'the player cast their first real spell', 'legendary-artifact': 'a legendary artifact was found or claimed' },
     },
     detective: {
-        icon: '🔎', label: 'Детектив', skills: ['Наблюдательность', 'Логика', 'Допрос', 'Скрытность', 'Интуиция'],
+        icon: 'fa-magnifying-glass', label: 'Детектив', skills: ['Наблюдательность', 'Логика', 'Допрос', 'Скрытность', 'Интуиция'],
         focus: 'detective: clues, suspects, alibis, lies and revelations; key evidence is worth a MARK',
         ach: { 'key-clue': 'a key clue was found', 'case-closed': 'the case was solved' },
     },
     school: {
-        icon: '🎒', label: 'Школа', skills: ['Учёба', 'Популярность', 'Спорт', 'Дружба', 'Дерзость'],
+        icon: 'fa-school', label: 'Школа', skills: ['Учёба', 'Популярность', 'Спорт', 'Дружба', 'Дерзость'],
         focus: 'school life: classmates, crushes, rivalries, teachers, gossip, exams and school events',
         ach: { detention: 'got caught and stayed after class', prom: 'went to the prom or a school dance with someone' },
     },
     crime: {
-        icon: '🕶️', label: 'Криминал', skills: ['Хладнокровие', 'Хитрость', 'Сила', 'Связи', 'Торг'],
+        icon: 'fa-user-secret', label: 'Криминал', skills: ['Хладнокровие', 'Хитрость', 'Сила', 'Связи', 'Торг'],
         focus: 'crime: loyalty, debts, betrayals, territory, deals and trouble with the law',
         ach: { 'made-member': 'the player was accepted into the family or gang', 'double-cross': 'someone played a double game' },
     },
     horror: {
-        icon: '🕯️', label: 'Хоррор', skills: ['Храбрость', 'Внимательность', 'Выживание', 'Самообладание', 'Оккультизм'],
+        icon: 'fa-ghost', label: 'Хоррор', skills: ['Храбрость', 'Внимательность', 'Выживание', 'Самообладание', 'Оккультизм'],
         focus: "horror: dread, threats, keeping one's nerve, who can be trusted and the unknown",
         ach: { 'survived-night': 'survived a terrible night', 'face-the-horror': 'faced the horror directly' },
     },
@@ -125,7 +125,7 @@ export function removeSkill(st, key) {
     return true;
 }
 
-// ---------- ✨ Навыки из сюжета ----------
+// ---------- Навыки из сюжета ----------
 
 const SUGGEST_SYSTEM = [
     "You name abilities for tracking the player's capabilities in a choice-driven story game, based on its world and genre. You never roleplay and never address anyone.",

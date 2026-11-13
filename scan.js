@@ -4,7 +4,7 @@
 // выключена: сводки знают будущее. Перед стартом — бэкап, скан можно отменить.
 // Ошибка или «Стоп» — пауза: продолжаем с той же пачки, прогресс живёт в метаданных чата.
 
-import { ctx, getSettings, getState, saveState, currentChatId, emptyState, clampInt, modOn } from './store.js';
+import { ctx, getSettings, getState, saveState, currentChatId, emptyState, clampInt, modOn, plural } from './store.js';
 import { systemPrompt, userPrompt, parse, parseDate, applyRow, SCAN_LIMITS } from './judge.js';
 import { reconcileSkills, genrePromptLines } from './genres.js';
 import { lifeweaverRule } from './lifeweaver.js';
@@ -20,6 +20,12 @@ const RARITY_ORDER = { legendary: 0, rare: 1, common: 2 };
 let running = false;
 let stopAsked = false;
 let hooks = { render() {}, showNote() {}, showAch() {}, onError() {}, explain: (m) => m };
+
+const MSG = ['сообщение', 'сообщения', 'сообщений'];
+const BATCH = ['пачка', 'пачки', 'пачек'];
+const BATCH_GEN = ['пачки', 'пачек', 'пачек'];
+const MARK = ['отметка', 'отметки', 'отметок'];
+const ACH = ['ачивка', 'ачивки', 'ачивок'];
 
 export function setScanHooks(h) {
     hooks = { ...hooks, ...h };
@@ -174,7 +180,7 @@ async function runScan() {
         st.rerollWait = null;
         await saveState();
         const top = sc.ach.slice().sort((a, b) => (RARITY_ORDER[a.rarity] ?? 3) - (RARITY_ORDER[b.rarity] ?? 3));
-        hooks.showNote(`История прочитана: ${sc.total} сообщений, пачек — ${sc.batches.length}. Отметок: ${sc.rows}, ачивок: ${sc.ach.length}.`, { force: true });
+        hooks.showNote(`История прочитана: ${plural(sc.total, MSG)}, ${plural(sc.batches.length, BATCH)}. ${plural(sc.rows, MARK)}, ${plural(sc.ach.length, ACH)}`, { force: true });
         hooks.showAch(top.slice(0, 2));
     } finally {
         running = false;
@@ -205,7 +211,7 @@ export function scanCardHtml(st, escapeHtml) {
             <div class="thr-card thr-scan">
                 <div class="thr-card-head"><span><i class="fa-solid fa-book-open"></i> Скан на паузе</span><b>${sc.next}<small> / ${n}</small></b></div>
                 ${bar}
-                <div class="thr-note">прочитано пачек: ${sc.next} из ${n}. Пока скан не закончен, судья сам не оценивает.</div>
+                <div class="thr-note">Прочитано ${sc.next} из ${plural(n, BATCH_GEN)}. Пока скан не закончен, судья сам не оценивает.</div>
                 ${sc.error ? `<div class="thr-note thr-down">${escapeHtml(hooks.explain(sc.error))} <small>${escapeHtml(sc.error)}</small></div>` : ''}
                 <div class="thr-btn-row">
                     <button class="menu_button thr-wide-btn" type="button" data-act="scanresume"><i class="fa-solid fa-play"></i><span>Продолжить</span></button>
@@ -213,11 +219,11 @@ export function scanCardHtml(st, escapeHtml) {
                 </div>
             </div>`;
     }
-    const ach = sc.ach.length ? ` · ачивок: ${sc.ach.length} ${sc.ach.slice(0, 6).map((a) => achIcon(a.rarity)).join('')}` : '';
+    const ach = sc.ach.length ? ` · ${plural(sc.ach.length, ACH)} ${sc.ach.slice(0, 6).map((a) => achIcon(a.rarity)).join('')}` : '';
     return `
         <div class="thr-card thr-scan">
             <div class="thr-card-head"><span><i class="fa-solid fa-book"></i> История прочитана</span></div>
-            <div class="thr-note">${sc.total} сообщений, пачек — ${n} · отметок: ${sc.rows}${ach}</div>
+            <div class="thr-note">${plural(sc.total, MSG)}, ${plural(n, BATCH)} · ${plural(sc.rows, MARK)}${ach}</div>
             <div class="thr-btn-row">
                 <button class="menu_button thr-wide-btn" type="button" data-act="scanok"><i class="fa-solid fa-check"></i><span>Отлично</span></button>
                 ${st.scanBackup ? '<button class="menu_button thr-wide-btn" type="button" data-act="scanundo"><i class="fa-solid fa-rotate-left"></i><span>Отменить скан</span></button>' : ''}

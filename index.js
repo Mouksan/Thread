@@ -14,7 +14,7 @@
 
 import {
     ctx, getSettings, saveSettings, escapeHtml, clampInt, currentChatId,
-    getState, saveState, META_KEY, modeOf, modOn, HIST_DEPTHS, DEFAULT_MODES,
+    getState, saveState, META_KEY, modeOf, modOn, HIST_DEPTHS, DEFAULT_MODES, plural,
 } from './store.js';
 import {
     judgeNeeded, systemPrompt, userPrompt, parse, parseDate, applyRow,
@@ -179,7 +179,7 @@ async function addOwnSkill() {
         renderAll();
         overlayEl.querySelector('.thr-skill-input')?.focus();
     } else if (input.value.trim()) {
-        showNote('Такой навык уже есть, имя длиннее трёх слов или навыков уже 12.', { force: true });
+        showNote('Такой навык уже есть, имя длиннее трёх слов или навыков уже 12', { force: true });
     }
 }
 
@@ -410,7 +410,7 @@ function emptyHtml(text) {
 async function evaluate({ quiet = false } = {}) {
     if (busy) return;
     if (scanBlocks(getState())) {
-        if (!quiet) showNote('Сейчас идёт скан истории — дождись его или отмени.', { force: true });
+        if (!quiet) showNote('Сейчас идёт скан истории — дождись его или отмени', { force: true });
         return;
     }
     const chatId = currentChatId();
@@ -448,12 +448,12 @@ async function evaluate({ quiet = false } = {}) {
         // Пока судья думал, чат сменили или ответ перегенерировали — его выводы уже про другой текст
         if (currentChatId() !== chatId) {
             lastJudge.result = 'не применено: чат сменился';
-            showNote('Чат сменился, пока судья думал — эта оценка не применена.');
+            showNote('Чат сменился, пока судья думал — эта оценка не применена');
             return;
         }
         if (ctx().chat.length < total || !anchorHolds(anchor, total - 1)) {
             lastJudge.result = 'не применено: ответ перегенерировали';
-            showNote('Пока судья думал, ответ перегенерировали — эта оценка не применена.');
+            showNote('Пока судья думал, ответ перегенерировали — эта оценка не применена');
             return;
         }
         if (!raw.trim()) throw new Error('Empty reply');
@@ -477,7 +477,7 @@ async function evaluate({ quiet = false } = {}) {
 
         const achShown = showAch(applied.filter((r) => r.kind === 'ACH').concat(counters));
         const marksShown = showMarks(applied.filter((r) => r.kind !== 'ACH' && r.kind !== 'FACT'));
-        if (!applied.length && !quiet) showNote('Судья молчит — за это время ничего не изменилось.');
+        if (!applied.length && !quiet) showNote('Судья молчит — за это время ничего не изменилось');
         lastJudge.result = `применено: ${applied.length}${applied.length ? (achShown || marksShown ? ' · сноска показана' : ' · сноска не показана (сноски выключены или это только досье)') : ''}`;
     } catch (error) {
         const message = String(error?.message || error || 'Unknown error').slice(0, 300);
@@ -603,17 +603,23 @@ function explainError(message) {
 // ---------- Настройки (вкладка с шестерёнкой) ----------
 
 function settingsHtml() {
+    // Группы — на родных сворачиваемых блоках таверны: клик по шапке обрабатывает сама таверна
+    const group = (title, body, open = true) => `
+            <div class="inline-drawer">
+                <div class="inline-drawer-toggle inline-drawer-header">
+                    <b>${title}</b>
+                    <div class="inline-drawer-icon fa-solid ${open ? 'fa-circle-chevron-up up' : 'fa-circle-chevron-down down'}"></div>
+                </div>
+                <div class="inline-drawer-content"${open ? '' : ' style="display: none;"'}>${body}
+                </div>
+            </div>`;
     return `
-        <div class="thr-set">
-            <div class="thr-set-group">
+        <div class="thr-set">${group('Судья', `
                 <label class="thr-label" for="thr_profile">Профиль подключения для судьи</label>
                 <select id="thr_profile" class="text_pole"></select>
                 <div class="thr-note" id="thr_profile_hint">Судья — это отдельный тихий запрос. Пусто — он пойдёт на текущее подключение таверны, то есть на основную модель.</div>
-            </div>
-
-            <div class="thr-set-group">
                 <label class="checkbox_label" for="thr_auto"><input id="thr_auto" type="checkbox" /> Судья следит сам</label>
-                <div class="thr-note">В новом чате первая оценка — после первого ответа бота на твоё сообщение. В старых чатах первую оценку запускаешь ты кнопкой ⟳.</div>
+                <div class="thr-note">В новом чате первая оценка — после первого ответа бота на твоё сообщение. В старых чатах первую оценку запускаешь ты кнопкой <i class="fa-solid fa-rotate" aria-label="Поставить отметки сейчас"></i> в шапке.</div>
                 <div class="thr-set-row">
                     <label class="thr-label" for="thr_every">Как часто: раз в N сообщений</label>
                     <input id="thr_every" class="text_pole thr-num" type="number" min="2" max="50" step="1" />
@@ -628,70 +634,54 @@ function settingsHtml() {
                 <label class="checkbox_label" for="thr_lw"><input id="thr_lw" type="checkbox" /> Связь с Lifeweaver</label>
                 <div class="thr-note" id="thr_lw_note"></div>
                 <label class="checkbox_label" for="thr_memchat"><input id="thr_memchat" type="checkbox" /> Память судьи: лорбук этого чата</label>
-                <div class="thr-note">Судья дочитывает лорбук, привязанный к чату (например, сводки MemoryBook), чтобы знать прошлое истории. Боту через Thread он не уходит.</div>
-            </div>
-
-            <div class="thr-set-group">
+                <div class="thr-note">Судья дочитывает лорбук, привязанный к чату (например, сводки MemoryBook), чтобы знать прошлое истории. Боту через Thread он не уходит.</div>`)}
+${group('Записка и сноски', `
                 <label class="checkbox_label" for="thr_influence"><input id="thr_influence" type="checkbox" /> Метки влияют на сюжет</label>
-                <div class="thr-note">Бот получает короткую скрытую записку об отношениях, репутации и метках и показывает это поведением.</div>
+                <div class="thr-note">Бот получает короткую скрытую записку об отношениях, репутации и метках и показывает это поведением</div>
                 <label class="checkbox_label" for="thr_toasts"><input id="thr_toasts" type="checkbox" /> Показывать сноски поверх чата</label>
                 <div class="thr-set-row">
                     <label class="thr-label" for="thr_toastmode">Сноска уходит</label>
                     <select id="thr_toastmode" class="text_pole thr-num">
                         <option value="click">по клику</option>
-                        <option value="5">через 5 сек</option>
-                        <option value="15">через 15 сек</option>
+                        <option value="5">через 5&nbsp;сек</option>
+                        <option value="15">через 15&nbsp;сек</option>
                     </select>
-                </div>
-            </div>
-
-            <div class="thr-set-group">
+                </div>`)}
+${group('Разделы', `
+                <div class="thr-note">Вкл — работает и видно. Скрыть — вкладка спрятана, но данные собираются. Выкл — не собирается и не тратит токены: раздел уходит из запроса судье и из записки боту.</div>
+                <div id="thr_modes"></div>
                 <div class="thr-set-row">
                     <label class="thr-label" for="thr_repstart">С чего начинается репутация (0–100)</label>
                     <input id="thr_repstart" class="text_pole thr-num" type="number" min="0" max="100" step="1" />
                 </div>
-                <div class="thr-note">Действует на истории, которые судья ещё не смотрел.</div>
-            </div>
-
-            <div class="thr-set-group">
-                <div class="thr-label"><b>Разделы</b></div>
-                <div class="thr-note">Вкл — работает и видно. Скрыть — вкладка спрятана, но данные собираются. Выкл — не собирается и не тратит токены: раздел уходит из запроса судье и из записки боту.</div>
-                <div id="thr_modes"></div>
-            </div>
-
-            <div class="thr-set-group">
-                <div class="thr-label"><b>Скан всей истории</b></div>
+                <div class="thr-note">Действует на истории, которые судья ещё не смотрел</div>`)}
+${group('Скан истории', `
                 <div class="thr-note">Судья читает чат с самого начала пачками и ставит отметки по всей истории. Скрытые сообщения тоже читаются, память судьи на время скана выключена — сводки знают будущее. Главы ставятся сами, каждые 25 сообщений. Скан начинает с чистого листа, но его можно отменить.</div>
                 <div class="thr-set-row">
                     <label class="thr-label" for="thr_scansize">Сообщений в пачке: <b id="thr_scansize_val"></b></label>
                     <input id="thr_scansize" type="range" min="30" max="80" step="5" class="thr-range" />
                 </div>
                 <div class="thr-note" id="thr_scan_estimate"></div>
-                <button id="thr_scan_start" class="menu_button thr-wide-btn" type="button" data-act="scanstart"><i class="fa-solid fa-book-open"></i><span>Прочитать всю историю</span></button>
-            </div>
-
-            <div class="thr-set-group">
+                <button id="thr_scan_start" class="menu_button thr-wide-btn" type="button" data-act="scanstart"><i class="fa-solid fa-book-open"></i><span>Прочитать всю историю</span></button>`)}
+${group('Отладка', `
                 <details class="thr-details">
                     <summary>Последний ответ судьи</summary>
                     <div class="thr-note" id="thr_last_meta"></div>
                     <div class="thr-note" id="thr_last_sync"></div>
                     <pre class="thr-pre" id="thr_last_raw"></pre>
-                    <details class="thr-details">
-                        <summary>Записка боту</summary>
-                        <div class="thr-note" id="thr_note_meta"></div>
-                        <pre class="thr-pre" id="thr_note_text"></pre>
-                    </details>
-                    <details class="thr-details">
-                        <summary>Что ушло судье</summary>
-                        <pre class="thr-pre" id="thr_last_prompt"></pre>
-                    </details>
                 </details>
-            </div>
-
-            <div class="thr-set-group">
+                <details class="thr-details">
+                    <summary>Записка боту</summary>
+                    <div class="thr-note" id="thr_note_meta"></div>
+                    <pre class="thr-pre" id="thr_note_text"></pre>
+                </details>
+                <details class="thr-details">
+                    <summary>Что ушло судье</summary>
+                    <pre class="thr-pre" id="thr_last_prompt"></pre>
+                </details>`, false)}
+${group('Сброс', `
                 <button id="thr_reset" class="menu_button thr-danger" type="button">Начать с чистого листа</button>
-                <div class="thr-note">Стирает метки, навыки, отношения и ачивки этого чата. Настройки остаются.</div>
-            </div>
+                <div class="thr-note">Стирает метки, навыки, отношения и ачивки этого чата. Настройки остаются.</div>`)}
         </div>`;
 }
 
@@ -802,7 +792,7 @@ function syncSettings() {
 const SECTIONS = [
     ['rels', 'Отношения', 'Кто как к тебе относится, связи между персонажами'],
     ['facts', 'Досье', 'Факты и секреты персонажей — под их карточками в «Отношениях»'],
-    ['skills', 'Навыки', 'Характеристики и проверки 🎲'],
+    ['skills', 'Навыки', 'Характеристики и проверки'],
     ['rep', 'Репутация', 'Положение в мире истории'],
     ['flags', 'Метки и обещания', 'Статусы, клятвы, долги и обещания'],
     ['ach', 'Ачивки', 'Коллекция памятных моментов'],
@@ -827,7 +817,7 @@ function syncScanEstimate() {
     const total = Array.isArray(ctx().chat) ? ctx().chat.length : 0;
     overlayEl.querySelector('#thr_scansize_val').textContent = String(size);
     overlayEl.querySelector('#thr_scan_estimate').textContent = currentChatId() && total
-        ? `В этом чате ${total} сообщений — это ${scanBatches(total, size).length} запросов к судье.`
+        ? `В этом чате ${plural(total, ['сообщение', 'сообщения', 'сообщений'])} — это ${plural(scanBatches(total, size).length, ['запрос', 'запроса', 'запросов'])} к судье`
         : 'Открой чат, чтобы прочитать его историю.';
     overlayEl.querySelector('#thr_scan_start').disabled = !currentChatId() || !total || scanBlocks(getState());
 }

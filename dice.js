@@ -11,7 +11,7 @@ import { showAch } from './toasts.js';
 
 const DC = { easy: 8, mid: 12, hard: 16, epic: 20 };
 const DC_LABELS = { easy: 'легко', mid: 'средне', hard: 'сложно', epic: 'экстрим' };
-const RES_LABELS = { crit: 'Критический успех!', success: 'Успех', fail: 'Провал', fumble: 'Критический провал' };
+const RES_LABELS = { crit: 'Критический успех', success: 'Успех', fail: 'Провал', fumble: 'Критический провал' };
 
 const ui = { skill: null, dc: 'mid', rolling: false, last: null };
 let popEl = null;
@@ -84,11 +84,11 @@ async function cancelRoll() {
 
 function popHtml() {
     const st = getState();
-    if (!st) return '<div class="thr-note">Открой чат — у каждой истории свои навыки.</div>';
-    if (!modOn('skills')) return '<div class="thr-note">Раздел «Навыки» выключен — включи его в настройках Thread.</div>';
+    if (!st) return '<div class="thr-note">Открой чат — у каждой истории свои навыки</div>';
+    if (!modOn('skills')) return '<div class="thr-note">Раздел «Навыки» выключен — включи его в настройках Thread</div>';
     reconcileSkills(st);
     const list = skillList(st);
-    if (!list.length) return '<div class="thr-note">Навыков пока нет.</div>';
+    if (!list.length) return '<div class="thr-note">Навыков пока нет</div>';
     if (!ui.skill || !list.some((e) => e.name === ui.skill)) ui.skill = list[0].name;
 
     const chips = list.map((e) => {
@@ -109,12 +109,12 @@ function popHtml() {
                 <div class="thr-die ${good ? 'thr-good' : 'thr-bad'}">${r.d}</div>
                 <div>
                     <b class="${good ? 'thr-up' : 'thr-down'}">${RES_LABELS[r.res]}</b>
-                    <div class="thr-note">🎲 ${r.d} + ${r.mod} (${escapeHtml(r.skill)}) = ${r.total} против ${r.dc}</div>
+                    <div class="thr-note"><i class="fa-solid fa-dice-d20" aria-hidden="true"></i>${r.d} + ${r.mod} (${escapeHtml(r.skill)}) = ${r.total} против ${r.dc}</div>
                 </div>
             </div>
             <div class="thr-note">${live
                 ? 'Теперь напиши действие и отправь — бот узнает исход с ответом. Если перегенерируешь ответ, исход сохранится.'
-                : 'Бот уже получил этот исход.'}</div>
+                : 'Бот уже получил этот исход'}</div>
             ${live ? '<button class="menu_button thr-wide" type="button" data-act="cancel">Отменить бросок</button>' : ''}`;
     }
     return `
