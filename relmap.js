@@ -2,8 +2,9 @@
 // Раскладка, цвета, толщина и пунктир линий, дуги между персонажами, перетаскивание, зум и легенда —
 // по Storyline (mapSvg / legendHtml / обработчики карты). Своё — плашка-досье по клику на персонажа.
 
-import { getSettings, saveSettings, escapeHtml, relLevel, modeOf, getState, saveState } from './store.js';
-import { relVal, signed, LINK_LABELS } from './judge.js';
+import { getSettings, saveSettings, escapeHtml, relLevel, modeOf, getState, saveState, ctx } from './store.js';
+import { relVal, signed, LINK_LABELS, MAX_RELS, pushLog } from './judge.js';
+import { resolveName, unignore } from './chars.js';
 import { avatarFor, personaThumb } from './avatars.js';
 import { personaDisplayName } from './context.js';
 
@@ -17,11 +18,13 @@ const MAX_NODES = 12;
 const ZMIN = 0.5;
 const ZMAX = 3;
 
-// Палитра Storyline, чуть плотнее — чтобы не тонула на тёмной теме
-const C_WARM = '#e8869d';
-const C_FRIEND = '#dcae5c';
-const C_NEUTRAL = '#a39dad';
-const C_COLD = '#c04a64';
+// Палитра Storyline, чуть плотнее — чтобы не тонула на тёмной теме.
+// Линии к тебе красятся по нашим пяти уровням отношения (relLevel), чтобы цвет совпадал со словом в плашке.
+const C_WARM = '#e8869d';    // привязанность
+const C_FRIEND = '#dcae5c';  // симпатия
+const C_NEUTRAL = '#a39dad'; // равнодушие
+const C_CHILL = '#8a97cf';   // холод
+const C_COLD = '#c04a64';    // враждебность
 const TYPE_COLOR = {
     romance: C_WARM, friendship: C_FRIEND, trust: C_FRIEND, family: '#7fb47e',
     business: '#6f9cc6', rivalry: '#d88848', enmity: C_COLD, secret: '#a987cc',
@@ -31,12 +34,12 @@ const TYPE_COLOR = {
  * Мини-окошко на карте: { kind: 'pair' | 'person', key, x, y } | null — x, y: место тапа внутри карты (px).
  * flash — к какой карточке прокрутить в списке.
  */
-export const mapUi = { pop: null, flash: '' };
+export const mapUi = { pop: null, flash: '', add: false };
 
 const low = (s) => String(s || '').toLowerCase();
 
 function youColor(v) {
-    return v >= 40 ? C_WARM : v >= 10 ? C_FRIEND : v > -10 ? C_NEUTRAL : C_COLD;
+    return v >= 60 ? C_WARM : v >= 20 ? C_FRIEND : v > -20 ? C_NEUTRAL : v > -60 ? C_CHILL : C_COLD;
 }
 
 function pairColor(p) {
@@ -221,7 +224,7 @@ function legendHtml() {
         <details class="thr-genre thr-map-legsec" ${getSettings().mapLegend ? 'open' : ''}>
             <summary><b>Легенда</b></summary>
             <div class="thr-sec">Линии к тебе — как к тебе относятся</div>
-            ${row([[C_WARM, 'тепло: +40 и выше'], [C_FRIEND, 'симпатия: +10…+39'], [C_NEUTRAL, 'нейтрально: +9…−9'], [C_COLD, 'холодно: −10 и ниже']])}
+            ${row([[C_WARM, 'привязанность: +60 и выше'], [C_FRIEND, 'симпатия: +20…+59'], [C_NEUTRAL, 'равнодушие: −19…+19'], [C_CHILL, 'холод: −20…−59'], [C_COLD, 'враждебность: −60 и ниже']])}
             <div class="thr-sec">Между персонажами — тип связи</div>
             ${row([[TYPE_COLOR.romance, 'романтика'], [TYPE_COLOR.friendship, 'дружба/доверие'], [TYPE_COLOR.family, 'семья'], [TYPE_COLOR.business, 'деловые'], [TYPE_COLOR.rivalry, 'соперничество'], [TYPE_COLOR.enmity, 'вражда'], [TYPE_COLOR.secret, 'тайна']])}
             <div class="thr-note">толще — сильнее · пунктир — тайная или хрупкая связь</div>
@@ -252,6 +255,158 @@ export function mapHtml(st) {
         ${legendHtml()}`;
 }
 
+// ---------- Ручная связь (порт «Добавить связь» из Storyline) ----------
+
+const LINK_TYPES = ['romance', 'friendship', 'family', 'business', 'rivalry', 'enmity', 'secret'];
+const LINK_POWER = [[50, '+2'], [25, '+1'], [-25, '−1'], [-50, '−2']];
+const MAX_PAIRS = 12;
+
+/** Кнопка «Добавить связь» и, если открыта, форма под ней. */
+export function addLinkHtml(st) {
+    const btn = `<button class="menu_button thr-wide-btn ${mapUi.add ? 'thr-armed' : ''}" type="button" data-act="addlink" aria-expanded="${mapUi.add}"><i class="fa-solid fa-plus"></i><span>Добавить связь</span></button>`;
+    if (!mapUi.add) return btn;
+    const names = Object.keys(st.rels || {}).sort((a, b) => a.localeCompare(b, 'ru'));
+    const me = personaDisplayName() || 'ты';
+    const opts = (sel) => [
+        `<option value="__me" ${sel === '__me' ? 'selected' : ''}>Ты (${escapeHtml(me)})</option>`,
+        ...names.map((n) => `<option value="${escapeHtml(n)}" ${n === sel ? 'selected' : ''}>${escapeHtml(n)}</option>`),
+        `<option value="__other" ${sel === '__other' ? 'selected' : ''}>Другой персонаж…</option>`,
+    ].join('');
+    const second = names[0] || '__other';
+    const person = (id, label, sel) => `
+        <label class="thr-label" for="${id}">${label}</label>
+        <select id="${id}" class="text_pole thr-link-sel" data-new="${id}_new">${opts(sel)}</select>
+        <input id="${id}_new" class="text_pole thr-link-new" type="text" maxlength="40" placeholder="Имя персонажа" aria-label="Имя персонажа" ${sel === '__other' ? '' : 'hidden'} />`;
+    const types = LINK_TYPES.map((t) => `<option value="${t}" ${t === 'friendship' ? 'selected' : ''}>${LINK_LABELS[t]}</option>`).join('');
+    const power = LINK_POWER.map(([v, l]) => `<option value="${v}" ${v === 25 ? 'selected' : ''}>${l}</option>`).join('');
+    return `${btn}
+        <div class="thr-card thr-link-form">
+            ${person('thr_la', 'Кто', '__me')}
+            <div class="thr-link-arrow" aria-hidden="true">⟷</div>
+            ${person('thr_lb', 'С кем', second)}
+            <details class="thr-details">
+                <summary>Тип, сила и заметка</summary>
+                <div class="thr-link-adv">
+                    <label class="thr-label" for="thr_lt">Тип</label>
+                    <select id="thr_lt" class="text_pole">${types}</select>
+                    <label class="thr-label" for="thr_lv">Сила</label>
+                    <select id="thr_lv" class="text_pole">${power}</select>
+                    <input id="thr_ln" class="text_pole" type="text" maxlength="240" placeholder="Заметка (необязательно)" aria-label="Заметка" />
+                </div>
+            </details>
+            <div class="thr-note thr-down thr-link-err" role="alert" hidden></div>
+            <div class="thr-btn-row">
+                <button class="menu_button thr-wide-btn" type="button" data-act="addlinksave"><i class="fa-solid fa-check"></i><span>Сохранить</span></button>
+                <button class="menu_button thr-wide-btn" type="button" data-act="addlinkcancel"><span>Отмена</span></button>
+            </div>
+        </div>`;
+}
+
+/** Выбор «Другой персонаж…» показывает поле для имени. true — это было наше поле. */
+export function onLinkSelChange(target) {
+    if (!target?.classList?.contains('thr-link-sel')) return false;
+    const input = document.getElementById(target.dataset.new);
+    if (!input) return true;
+    input.hidden = target.value !== '__other';
+    if (!input.hidden) input.focus();
+    return true;
+}
+
+function linkError(form, text) {
+    const el = form?.querySelector('.thr-link-err');
+    if (!el) return;
+    el.textContent = text;
+    el.hidden = false;
+}
+
+/** Имя из формы → как оно записано у нас: тот же персонаж в другом регистре или под прежним именем. */
+function knownName(st, raw) {
+    const name = resolveName(st, String(raw || '').replace(/\s+/g, ' ').trim().slice(0, 40));
+    return Object.keys(st.rels || {}).find((n) => low(n) === low(name)) || name;
+}
+
+function clamp100(v) {
+    return Math.max(-100, Math.min(100, v));
+}
+
+/** Ручная правка в одном наборе данных: в самом состоянии, в снимках для отката и в «вернувшихся» оценках. */
+function applyManual(data, m) {
+    if (!data) return;
+    if (!data.rels || typeof data.rels !== 'object') data.rels = {};
+    if (m.me) {
+        data.rels[m.other] = clamp100((parseInt(data.rels[m.other], 10) || 0) + m.val);
+        if (!data.relHist || typeof data.relHist !== 'object') data.relHist = {};
+        const h = data.relHist[m.other] || [];
+        const last = h[h.length - 1];
+        if (last && last[0] === m.count) last[1] = data.rels[m.other]; else h.push([m.count, data.rels[m.other]]);
+        data.relHist[m.other] = h.slice(-40);
+        return;
+    }
+    for (const n of [m.a, m.b]) if (data.rels[n] == null) data.rels[n] = 0;
+    if (!data.pairs || typeof data.pairs !== 'object') data.pairs = {};
+    const pe = data.pairs[m.pk] ? { ...data.pairs[m.pk] } : { a: m.a, b: m.b, v: 0 };
+    // ручной ввод — «я знаю, как на самом деле»: сила того же типа заменяется, а не прибавляется
+    pe.types = { ...(pe.types || {}), [m.type]: m.val };
+    pe.v = m.val;
+    if (m.note) pe.note = m.note;
+    pe.sd = m.sd;
+    pe.at = m.at;
+    data.pairs[m.pk] = pe;
+}
+
+/** «Сохранить» в форме. true — данные чата изменились; false — ошибка показана в форме. */
+function saveLink(st, btn) {
+    const form = btn.closest('.thr-link-form');
+    const val = (id) => form?.querySelector(`#${id}`)?.value || '';
+    const pick = (id) => {
+        const v = val(id);
+        if (v === '__me') return v;
+        return knownName(st, v === '__other' ? val(`${id}_new`) : v);
+    };
+    const a = pick('thr_la');
+    const b = pick('thr_lb');
+    if (!a || !b || (a === '__me' && b === '__me') || (a !== '__me' && b !== '__me' && low(a) === low(b))) {
+        linkError(form, 'Выбери двух разных людей');
+        return false;
+    }
+    const fresh = [a, b].filter((n) => n !== '__me' && st.rels[n] == null);
+    if (Object.keys(st.rels).length + fresh.length > MAX_RELS) {
+        linkError(form, `Уже ${MAX_RELS} персонажей — убери кого-нибудь, чтобы добавить нового`);
+        return false;
+    }
+    const me = a === '__me' || b === '__me';
+    const type = LINK_TYPES.includes(val('thr_lt')) ? val('thr_lt') : 'friendship';
+    const power = parseInt(val('thr_lv'), 10);
+    const m = {
+        me,
+        other: me ? (a === '__me' ? b : a) : '',
+        a, b, type,
+        val: LINK_POWER.some(([v]) => v === power) ? power : 25,
+        note: val('thr_ln').replace(/\s+/g, ' ').trim().slice(0, 240),
+        count: Array.isArray(ctx().chat) ? ctx().chat.length : 0,
+        sd: st.sdate?.text || '',
+        at: Date.now(),
+    };
+    if (!me) {
+        const [k1, k2] = [low(a), low(b)].sort();
+        m.pk = `${k1}||${k2}`;
+        if (!st.pairs?.[m.pk] && Object.keys(st.pairs || {}).length >= MAX_PAIRS) {
+            linkError(form, `Уже ${MAX_PAIRS} связей между персонажами — убери лишнюю`);
+            return false;
+        }
+    }
+    for (const n of fresh) unignore(st, n);
+    applyManual(st, m);
+    // Ручная связь переживает откаты на свайпах — как и переименование
+    for (const snap of Array.isArray(st.snaps) ? st.snaps : []) applyManual(snap?.data, m);
+    for (const r of Array.isArray(st.redo) ? st.redo : []) applyManual(r?.after, m);
+    const note = m.note || 'вручную';
+    if (me) pushLog(st, { kind: 'REL', target: m.other, delta: m.val, note, count: m.count, at: m.at, sd: m.sd });
+    else pushLog(st, { kind: 'LINK', target: `${a} — ${b}`, delta: m.val, note, count: m.count, at: m.at, sd: m.sd });
+    mapUi.add = false;
+    return true;
+}
+
 // ---------- Кнопки ----------
 
 /** 'render' — перерисовать, true — данные чата изменились, false — не наше. */
@@ -280,6 +435,11 @@ export function handleMapAction(st, btn) {
         st.mapPos = {};
         return had ? true : 'render';
     }
+    if (act === 'addlink' || act === 'addlinkcancel') {
+        mapUi.add = act === 'addlink' ? !mapUi.add : false;
+        return 'render';
+    }
+    if (act === 'addlinksave') return saveLink(st, btn);
     if (act === 'mappopx') {
         mapUi.pop = null;
         return 'render';

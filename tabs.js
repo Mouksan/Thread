@@ -12,7 +12,7 @@ import { avatarFor } from './avatars.js';
 import { renameCharacter, removeCharacter, unignore } from './chars.js';
 import { lifeweaverFacts } from './lifeweaver.js';
 import { scanCardHtml, scanBlocks, scanBatches } from './scan.js';
-import { relView, viewSwitchHtml, mapHtml, handleMapAction } from './relmap.js';
+import { relView, viewSwitchHtml, mapHtml, handleMapAction, addLinkHtml, mapUi } from './relmap.js';
 
 const RARITY_ORDER = { legendary: 0, rare: 1, common: 2 };
 
@@ -170,7 +170,7 @@ function factsHtml(st, name) {
 
 export function relsHtml(st) {
     const names = Object.keys(st.rels).sort((a, b) => relVal(st, b) - relVal(st, a));
-    if (!names.length) return emptyHtml('Пока никого — судья запишет персонажей, когда посмотрит историю');
+    if (!names.length) return addLinkHtml(st) + (mapUi.add ? '' : emptyHtml('Пока никого — судья запишет персонажей, когда посмотрит историю'));
     const cards = names.map((n) => {
         const v = relVal(st, n);
         const av = avatarFor(st, n);
@@ -208,8 +208,8 @@ export function relsHtml(st) {
     const gone = ignored.length ? `
         <div class="thr-sub">Убранные — судья их не записывает: ${ignored.map((n) => `
             <button class="thr-chip-btn" type="button" data-act="unignore" data-name="${escapeHtml(n)}" title="Вернуть: судья снова сможет записывать">↺ ${escapeHtml(n)}</button>`).join(' ')}</div>` : '';
-    if (relView() === 'map') return viewSwitchHtml() + mapHtml(st) + gone;
-    return viewSwitchHtml() + cards + links + gone;
+    if (relView() === 'map') return addLinkHtml(st) + viewSwitchHtml() + mapHtml(st) + gone;
+    return addLinkHtml(st) + viewSwitchHtml() + cards + links + gone;
 }
 
 // ---------- Навыки ----------

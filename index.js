@@ -41,7 +41,7 @@ import {
 import { lifeweaverFacts, lifeweaverRule, lifeweaverInstalled } from './lifeweaver.js';
 import { installBridge, reportLines } from './bridge.js';
 import { astroHtml, handleAstroAction, handleAstroInput, astroUi, saveMeName, cancelMeEdit } from './astro-tab.js';
-import { mapPointerDown, afterRelsRender, onLegendToggle, onOutsidePointer, closePopOnEsc } from './relmap.js';
+import { mapPointerDown, afterRelsRender, onLegendToggle, onOutsidePointer, closePopOnEsc, onLinkSelChange } from './relmap.js';
 import { syncHearthtide } from './astro.js';
 
 // Перехватчик генерации — имя прописано в manifest.json (generate_interceptor)
@@ -105,6 +105,7 @@ function buildWindow() {
     body.addEventListener('pointerdown', (e) => mapPointerDown(e, () => renderAll()));
     body.addEventListener('toggle', (e) => onLegendToggle(e.target), true);
     body.addEventListener('change', async (e) => {
+        if (onLinkSelChange(e.target)) return;
         if (await handleAstroInput(e.target)) renderAll();
     });
     overlay.querySelector('.thr-tabs').addEventListener('click', (e) => {

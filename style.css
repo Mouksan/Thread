@@ -882,6 +882,29 @@ span.thr-ava {
     border-radius: 2px;
 }
 
+/* Ручная связь */
+
+.thr-link-form .text_pole {
+    margin: 0;
+}
+
+.thr-link-form .thr-link-new[hidden],
+.thr-link-err[hidden] {
+    display: none;
+}
+
+.thr-link-arrow {
+    color: var(--thr-text-3);
+    text-align: center;
+}
+
+.thr-link-adv {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 8px;
+}
+
 /* Карточка, открытая с карты: короткая подсветка рамкой */
 
 .thr-card.thr-flash {
