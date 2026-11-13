@@ -41,7 +41,7 @@ import {
 import { lifeweaverFacts, lifeweaverRule, lifeweaverInstalled } from './lifeweaver.js';
 import { installBridge, reportLines } from './bridge.js';
 import { astroHtml, handleAstroAction, handleAstroInput, astroUi, saveMeName, cancelMeEdit } from './astro-tab.js';
-import { mapPointerDown, flashCard, onLegendToggle } from './relmap.js';
+import { mapPointerDown, afterRelsRender, onLegendToggle, onOutsidePointer, closePopOnEsc } from './relmap.js';
 import { syncHearthtide } from './astro.js';
 
 // Перехватчик генерации — имя прописано в manifest.json (generate_interceptor)
@@ -296,14 +296,52 @@ function onKeyDown(e) {
     if (e.target?.classList?.contains('thr-ch-input') || e.target?.classList?.contains('thr-name-input')) return; // Esc в поле — только отмена ввода
     // Если поверх открыт попап таверны — пусть он сам обработает Esc
     if (document.querySelector('dialog[open]')) return;
+    if (closePopOnEsc()) return; // сначала закрываем мини-окошко на карте
     closeWindow();
+}
+
+/**
+ * Высота видимой части экрана → --thr-vh у подложки (порт из Junket). На телефоне надёжнее dvh:
+ * учитывает панель браузера, раскладывание Фолда и открытую клавиатуру.
+ */
+function syncViewportHeight() {
+    if (!overlayEl) return;
+    const height = window.visualViewport?.height || window.innerHeight;
+    if (height > 0) overlayEl.style.setProperty('--thr-vh', `${Math.round(height)}px`);
+    keepOverlayOnScreen();
+}
+
+/**
+ * Страховка из Junket: в CSS таверны у <html> стоит translateZ(0), и мобильный Firefox считает
+ * fixed-подложку от страницы. Если страницу под окном что-то прокрутило — сдвигаем подложку обратно.
+ */
+function keepOverlayOnScreen() {
+    if (!isOpen()) return;
+    if (overlayEl.scrollTop || overlayEl.scrollLeft) overlayEl.scrollTo(0, 0);
+    const current = parseFloat(overlayEl.style.getPropertyValue('--thr-top')) || 0;
+    const drift = overlayEl.getBoundingClientRect().top;
+    if (Math.abs(drift) < 1) return;
+    overlayEl.style.setProperty('--thr-top', `${Math.round(current - drift)}px`);
+}
+
+let viewportBound = false;
+function bindViewport() {
+    if (viewportBound) return;
+    viewportBound = true;
+    window.addEventListener('resize', syncViewportHeight);
+    window.visualViewport?.addEventListener('resize', syncViewportHeight);
+    window.addEventListener('scroll', keepOverlayOnScreen, { passive: true });
+    overlayEl?.addEventListener('scroll', keepOverlayOnScreen, { passive: true });
 }
 
 function openWindow(tab) {
     if (!overlayEl) buildWindow();
+    syncViewportHeight();
+    bindViewport();
     if (tab) activeTab = tab;
     overlayEl.classList.add('thr-open');
     document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('pointerdown', onOutsidePointer, true);
     renderAll();
     // Запасной путь: если таверна что-то поменяла молча, сверяемся при открытии окна
     syncWithChat('окно').catch((e) => console.error('[Thread] откат:', e));
@@ -313,6 +351,7 @@ function closeWindow() {
     if (!overlayEl) return;
     overlayEl.classList.remove('thr-open');
     document.removeEventListener('keydown', onKeyDown);
+    document.removeEventListener('pointerdown', onOutsidePointer, true);
     disarmReset();
 }
 
@@ -358,7 +397,7 @@ function renderAll() {
     }
     const html = { overview: (x) => overviewHtml(x, busy), rels: relsHtml, skills: skillsHtml, flags: flagsHtml, ach: achHtml }[activeTab];
     pane.innerHTML = html ? html(st) : astroHtml(st);
-    if (activeTab === 'rels') flashCard(pane);
+    if (activeTab === 'rels') afterRelsRender(pane);
 }
 
 function emptyHtml(text) {

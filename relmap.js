@@ -27,7 +27,10 @@ const TYPE_COLOR = {
     business: '#6f9cc6', rivalry: '#d88848', enmity: C_COLD, secret: '#a987cc',
 };
 
-/** Что открыто под картой: { kind: 'pair' | 'person', key } | null. flash — к какой карточке прокрутить в списке. */
+/**
+ * Мини-окошко на карте: { kind: 'pair' | 'person', key, x, y } | null — x, y: место тапа внутри карты (px).
+ * flash — к какой карточке прокрутить в списке.
+ */
 export const mapUi = { pop: null, flash: '' };
 
 const low = (s) => String(s || '').toLowerCase();
@@ -184,12 +187,12 @@ function pairText(pe) {
 function popHtml(st) {
     const pop = mapUi.pop;
     if (!pop) return '';
-    const close = '<button class="thr-x" type="button" data-act="mappopx" title="Закрыть" aria-label="Закрыть"><i class="fa-solid fa-xmark"></i></button>';
+    const at = `style="left:${Math.round(pop.x || 0)}px;top:${Math.round(pop.y || 0)}px" data-x="${Math.round(pop.x || 0)}" data-y="${Math.round(pop.y || 0)}"`;
     if (pop.kind === 'pair') {
         const pe = st.pairs?.[pop.key];
         if (!pe) { mapUi.pop = null; return ''; }
-        return `<div class="thr-card thr-map-pop">
-            <div class="thr-map-pop-head"><span><b>${escapeHtml(pe.a)} ⟷ ${escapeHtml(pe.b)}</b> · ${escapeHtml(pairText(pe))}</span>${close}</div>
+        return `<div class="thr-card thr-map-pop" ${at}>
+            <div><b>${escapeHtml(pe.a)} ⟷ ${escapeHtml(pe.b)}</b> · ${escapeHtml(pairText(pe))}</div>
             ${pe.note ? `<div class="thr-note">${escapeHtml(pe.note)}</div>` : ''}
         </div>`;
     }
@@ -200,12 +203,12 @@ function popHtml(st) {
     const facts = modeOf('facts') === 'on' ? (st.facts?.[name] || []).length : null;
     const links = Object.values(st.pairs || {}).filter((p) => p && (low(p.a) === low(name) || low(p.b) === low(name))).length;
     const counts = [facts != null ? `Фактов: ${facts}` : '', `Связей: ${links}`].filter(Boolean).join(' · ');
-    return `<div class="thr-card thr-map-pop">
+    return `<div class="thr-card thr-map-pop" ${at}>
         <div class="thr-map-pop-head">
             <span class="thr-map-pop-who">
                 ${url ? `<img class="thr-ava thr-ava-sm" src="${escapeHtml(url)}" alt="" loading="lazy" />` : `<span class="thr-ava thr-ava-sm thr-ava-empty">${escapeHtml(initial(name))}</span>`}
                 <span><b>${escapeHtml(name)}</b><br><span class="${v > 0 ? 'thr-up' : v < 0 ? 'thr-down' : ''}">${escapeHtml(relLevel(v))} ${signed(v)}</span></span>
-            </span>${close}
+            </span>
         </div>
         <div class="thr-note">${escapeHtml(counts)}</div>
         <button class="menu_button thr-wide-btn" type="button" data-act="maptocard" data-name="${escapeHtml(name)}"><i class="fa-solid fa-id-card"></i><span>К карточке</span></button>
@@ -243,10 +246,9 @@ export function mapHtml(st) {
     </div>`;
     return `
         ${zoomRow}
-        <div class="thr-map-wrap">${svgHtml(st, names)}</div>
+        <div class="thr-map-wrap">${svgHtml(st, names)}${popHtml(st)}</div>
         <div class="thr-note">Персонажей можно перетаскивать — расстановка запомнится в этом чате.</div>
         ${more ? `<div class="thr-note">Ещё ${more} — в списке.</div>` : ''}
-        ${popHtml(st)}
         ${legendHtml()}`;
 }
 
@@ -263,12 +265,14 @@ export function handleMapAction(st, btn) {
         return 'render';
     }
     if (act === 'mapzin' || act === 'mapzout') {
+        mapUi.pop = null;
         const z = zoom() * (act === 'mapzin' ? 1.25 : 0.8);
         s.mapZoom = Math.round(Math.max(ZMIN, Math.min(ZMAX, z)) * 100) / 100;
         saveSettings();
         return 'render';
     }
     if (act === 'mapzreset') {
+        mapUi.pop = null;
         s.mapZoom = 1;
         s.mapPan = { x: 0, y: 0 };
         saveSettings();
@@ -290,14 +294,70 @@ export function handleMapAction(st, btn) {
     return false;
 }
 
-/** После отрисовки списка: прокрутить к карточке, открытой с карты, и подсветить её. */
-export function flashCard(pane) {
-    if (!mapUi.flash || !pane) return;
+/** После отрисовки вкладки: мини-окошко — в границы карты; карточка, открытая с карты, — прокрутить и подсветить. */
+export function afterRelsRender(pane) {
+    if (!pane) return;
+    placePop(pane);
+    flashCard(pane);
+}
+
+/** Окошко у места тапа; не влезает справа или снизу — встаёт с другой стороны, но не за край карты. */
+function placePop(pane) {
+    const pop = pane.querySelector('.thr-map-pop');
+    const wrap = pop?.closest('.thr-map-wrap');
+    if (!pop || !wrap) return;
+    const ww = wrap.clientWidth;
+    const wh = wrap.clientHeight;
+    const pw = pop.offsetWidth;
+    const ph = pop.offsetHeight;
+    const x = parseFloat(pop.dataset.x) || 0;
+    const y = parseFloat(pop.dataset.y) || 0;
+    const GAP = 12;
+    const PAD = 6;
+    let left = x + GAP + pw <= ww - PAD ? x + GAP : x - GAP - pw;
+    let top = y + GAP + ph <= wh - PAD ? y + GAP : y - GAP - ph;
+    left = Math.max(PAD, Math.min(ww - pw - PAD, left));
+    top = Math.max(PAD, Math.min(wh - ph - PAD, top));
+    pop.style.left = `${Math.round(left)}px`;
+    pop.style.top = `${Math.round(top)}px`;
+    pop.classList.add('thr-placed');
+}
+
+/** Закрыть мини-окошко без перерисовки всей вкладки. */
+function dropPop() {
+    if (!mapUi.pop) return false;
+    mapUi.pop = null;
+    document.querySelectorAll('.thr-map-pop').forEach((el) => el.remove());
+    return true;
+}
+
+/** Клик или тап мимо мини-окошка закрывает его. Нажатия по самой карте разбирает mapPointerDown. */
+export function onOutsidePointer(e) {
+    if (!mapUi.pop) return;
+    const t = e.target;
+    if (t?.closest?.('.thr-map-pop') || t?.closest?.('svg.thr-map')) return;
+    dropPop();
+}
+
+/** Esc закрывает мини-окошко. true — было что закрывать. */
+export function closePopOnEsc() {
+    return dropPop();
+}
+
+function flashCard(pane) {
+    if (!mapUi.flash) return;
     const name = mapUi.flash;
     mapUi.flash = '';
     const card = [...pane.querySelectorAll('[data-card]')].find((el) => el.dataset.card === name);
     if (!card) return;
-    card.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    // Крутим только содержимое окна: scrollIntoView крутил бы и страницу таверны под ним,
+    // а в мобильном Firefox окно уезжает вместе с ней (тот же баг, что чинили в Junket)
+    const body = card.closest('.thr-body');
+    if (body) {
+        const delta = card.getBoundingClientRect().top - body.getBoundingClientRect().top;
+        const top = body.scrollTop + delta - Math.max(0, (body.clientHeight - card.offsetHeight) / 2);
+        body.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+    }
     card.classList.remove('thr-flash');
     void card.offsetWidth; // перезапуск анимации
     card.classList.add('thr-flash');
@@ -334,8 +394,12 @@ export function mapPointerDown(e, rerender) {
     const pair = e.target.closest('[data-pair]');
     const view = svg.querySelector('.thr-map-view');
     const { names } = shownNames(st);
+    const prevPop = mapUi.pop;
+    dropPop();
+    const wr = svg.closest('.thr-map-wrap')?.getBoundingClientRect();
     drag = {
-        svg, view, node, pair, rerender,
+        svg, view, node, pair, rerender, prevPop,
+        at: wr ? { x: e.clientX - wr.left, y: e.clientY - wr.top } : { x: 0, y: 0 },
         id: e.pointerId,
         sx: e.clientX,
         sy: e.clientY,
@@ -401,6 +465,7 @@ function onCancel() {
     d?.rerender();
 }
 
+
 async function onUp(e) {
     if (!drag || e.pointerId !== drag.id) return;
     const d = drag;
@@ -410,8 +475,8 @@ async function onUp(e) {
         // клик: плашка персонажа или связи (повторный клик по тому же — закрыть)
         const next = d.node ? { kind: 'person', key: d.node.dataset.person } : d.pair ? { kind: 'pair', key: d.pair.dataset.pair } : null;
         if (next) {
-            const same = mapUi.pop && mapUi.pop.kind === next.kind && mapUi.pop.key === next.key;
-            mapUi.pop = same ? null : next;
+            const same = d.prevPop && d.prevPop.kind === next.kind && d.prevPop.key === next.key;
+            mapUi.pop = same ? null : { ...next, ...d.at };
             d.rerender();
         }
         return;

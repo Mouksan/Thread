@@ -1,13 +1,23 @@
 /* Thread — стили. Окно стеклянное и живёт на цветах темы таверны (каркас — как у Junket). */
 
 .thr-overlay {
+    /* Не inset: 0 (порт из Junket)! В CSS таверны у <html> стоит translateZ(0), и мобильный Firefox
+       делает <html> опорой для position: fixed, а он на телефоне нулевой высоты — окно уезжало
+       за верх экрана. Поэтому размеры задаём явно, от экрана; --thr-vh и --thr-top ставит index.js. */
     position: fixed;
-    inset: 0;
+    top: var(--thr-top, 0px);
+    left: 0;
     z-index: 9999;
+    box-sizing: border-box;
     display: none;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
+    width: 100vw;
+    height: 100vh;
+    height: var(--thr-vh, 100dvh);
     padding: 16px;
+    /* Окно всегда влезает (max-height: 100%), прокручивать подложку нечего */
+    overflow: hidden;
     background: rgba(0, 0, 0, 0.45);
 }
 
@@ -18,8 +28,11 @@
 .thr-window {
     display: flex;
     flex-direction: column;
+    /* margin: auto — по центру, когда влезает, и от верхнего края, когда нет */
+    margin: auto 0;
     width: min(720px, 100%);
-    height: min(640px, calc(100dvh - 32px));
+    height: min(640px, 100%);
+    max-height: 100%;
     overflow: hidden;
     color: var(--SmartThemeBodyColor);
     background: var(--SmartThemeBlurTintColor);
@@ -1416,7 +1429,7 @@ span.thr-ava {
     display: block;
     width: 100%;
     height: auto;
-    max-height: 70vh;
+    max-height: 60vh;
     cursor: grab;
     touch-action: pan-y;
     user-select: none;
@@ -1525,5 +1538,111 @@ span.thr-ava {
     }
     100% {
         box-shadow: 0 0 0 0 transparent;
+    }
+}
+
+/* Мини-окошко на карте — у места тапа */
+
+.thr-map-wrap {
+    position: relative;
+}
+
+.thr-card.thr-map-pop {
+    position: absolute;
+    box-sizing: border-box;
+    z-index: 2;
+    gap: 4px;
+    width: max-content;
+    max-width: min(240px, calc(100% - 12px));
+    padding: 9px 11px;
+    font-size: 0.92em;
+    background: var(--SmartThemeBlurTintColor);
+    backdrop-filter: blur(var(--SmartThemeBlurStrength, 10px));
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.4);
+    visibility: hidden;
+}
+
+.thr-card.thr-map-pop.thr-placed {
+    visibility: visible;
+}
+
+.thr-map-pop .menu_button.thr-wide-btn {
+    width: 100%;
+    margin: 4px 0 0;
+    justify-content: center;
+}
+
+/* ПК: окно пошире, как у Junket — 70% ширины и 82% высоты экрана */
+
+@media (min-width: 1001px) {
+    .thr-window {
+        width: 70vw;
+        height: min(82vh, 100%);
+    }
+}
+
+/* Любой сенсорный экран (телефон, раскрытый Фолд, планшет): окно во весь экран, без рамки */
+
+@media (hover: none) and (pointer: coarse) {
+    .thr-overlay {
+        padding: env(safe-area-inset-top, 0) 0 env(safe-area-inset-bottom, 0);
+    }
+
+    .thr-window,
+    .thr-window[class] {
+        width: 100%;
+        height: 100%;
+        max-height: 100%;
+        border: none;
+        border-radius: 0;
+    }
+}
+
+/* Телефон: кнопки под палец, вкладки листаются вбок */
+
+@media (max-width: 600px) {
+    .thr-overlay {
+        padding: env(safe-area-inset-top, 0) 0 env(safe-area-inset-bottom, 0);
+    }
+
+    .thr-window,
+    .thr-window[class] {
+        width: 100%;
+        height: 100%;
+        border: none;
+        border-radius: 0;
+    }
+
+    .thr-header {
+        gap: 8px;
+        padding: 8px 8px 6px 14px;
+    }
+
+    .thr-header .thr-icon-btn {
+        width: 40px;
+        height: 40px;
+        font-size: 1.15em;
+    }
+
+    .thr-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+
+    .thr-tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .thr-tab {
+        flex: none;
+    }
+
+    .thr-tab[data-tab="settings"] {
+        padding: 9px 13px;
+    }
+
+    .thr-body {
+        padding: 12px;
     }
 }
