@@ -1178,7 +1178,24 @@ span.thr-ava {
 }
 
 .thr-astro-name {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
     font-size: 1.1em;
+}
+
+/* Строка с датой рождения и карандашом — в одну линию */
+.thr-astro-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+}
+
+/* «· ты» и «· карточка» — тише имени */
+.thr-astro-name .thr-note {
+    font-size: 0.8em;
 }
 
 .thr-astro-sec {

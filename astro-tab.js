@@ -126,7 +126,7 @@ function detailHtml(st, p) {
                 <div class="thr-astro-name">${p.isMe && astroUi.meEdit
                     ? `<input class="text_pole thr-name-input thr-me-input" type="text" maxlength="40" value="${escapeHtml(p.name)}" placeholder="${escapeHtml(personaName())}" />`
                     : `<b>${escapeHtml(p.name)}</b>${p.isMe ? ` <button class="thr-x" type="button" data-act="azme" title="Своё имя" aria-label="Своё имя"><i class="fa-solid fa-pen"></i></button> <span class="thr-note">· ты</span>` : ''}${p.isBot ? ' <span class="thr-note">· карточка</span>' : ''}`}</div>
-                <div>${a?.d ? birthdayHtml(st, a) : 'не указано'} <button class="thr-x" type="button" data-act="azedit" title="Изменить" aria-label="Изменить"><i class="fa-solid fa-pen"></i></button></div>
+                <div class="thr-astro-line">${a?.d ? birthdayHtml(st, a) : 'не указано'} <button class="thr-x" type="button" data-act="azedit" title="Изменить" aria-label="Изменить"><i class="fa-solid fa-pen"></i></button></div>
                 ${z ? `<div>${SIGN_ICON[z]} <b>${SIGN_RU[z]}</b> <span class="thr-note">(${escapeHtml(zd.rng)})</span></div>` : ''}
                 ${a?.mbti ? `<div><b>${escapeHtml(a.mbti)}</b>${md ? ` — ${escapeHtml(md.t)}` : ''}</div>` : ''}
             </div>
@@ -140,7 +140,7 @@ function detailHtml(st, p) {
         ${dailyHtml(st, p.key)}
         ${a?.src === 'manual' ? '' : `
             <button class="menu_button thr-wide-btn" type="button" data-act="azcalc" data-key="${escapeHtml(p.key)}" ${busy ? 'disabled' : ''}>
-                ${busy ? '<i class="fa-solid fa-spinner fa-spin"></i><span>думаю…</span>' : `<i class="fa-solid fa-wand-magic-sparkles"></i><span>${a ? 'Пересчитать' : 'Угадать знак и MBTI'}</span>`}
+                ${busy ? '<i class="fa-solid fa-spinner fa-spin"></i><span>Думаю…</span>' : `<i class="fa-solid fa-wand-magic-sparkles"></i><span>${a ? 'Пересчитать' : 'Угадать знак и MBTI'}</span>`}
             </button>`}`;
 }
 
@@ -189,7 +189,7 @@ export function astroHtml(st) {
     const scanBusy = astroUi.busy === '*';
     return `
         <button class="menu_button thr-wide-btn" type="button" data-act="azscan" ${scanBusy ? 'disabled' : ''}>
-            ${scanBusy ? '<i class="fa-solid fa-spinner fa-spin"></i><span>думаю…</span>' : '<i class="fa-solid fa-wand-magic-sparkles"></i><span>Угадать тебе и персонажу карточки</span>'}
+            ${scanBusy ? '<i class="fa-solid fa-spinner fa-spin"></i><span>Думаю…</span>' : '<i class="fa-solid fa-wand-magic-sparkles"></i><span>Угадать тебе и персонажу карточки</span>'}
         </button>
         ${astroUi.err ? `<div class="thr-note thr-down">${escapeHtml(astroUi.err)}</div>` : ''}
         ${rows}
