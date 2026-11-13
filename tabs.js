@@ -12,6 +12,7 @@ import { avatarFor } from './avatars.js';
 import { renameCharacter, removeCharacter, unignore } from './chars.js';
 import { lifeweaverFacts } from './lifeweaver.js';
 import { scanCardHtml, scanBlocks, scanBatches } from './scan.js';
+import { relView, viewSwitchHtml, mapHtml, handleMapAction } from './relmap.js';
 
 const RARITY_ORDER = { legendary: 0, rare: 1, common: 2 };
 
@@ -174,7 +175,7 @@ export function relsHtml(st) {
         const v = relVal(st, n);
         const av = avatarFor(st, n);
         return `
-            <div class="thr-card thr-rel">
+            <div class="thr-card thr-rel" data-card="${escapeHtml(n)}">
                 <div class="thr-rel-head">
                     <button class="thr-ava-btn" type="button" data-act="ava" data-name="${escapeHtml(n)}" title="Сменить аватарку" aria-label="Сменить аватарку">
                         ${av ? `<img class="thr-ava" src="${escapeHtml(av)}" alt="" loading="lazy" />` : `<span class="thr-ava thr-ava-empty">${initials(n)}</span>`}
@@ -207,7 +208,8 @@ export function relsHtml(st) {
     const gone = ignored.length ? `
         <div class="thr-sub">Убранные — судья их не записывает: ${ignored.map((n) => `
             <button class="thr-chip-btn" type="button" data-act="unignore" data-name="${escapeHtml(n)}" title="Вернуть: судья снова сможет записывать">↺ ${escapeHtml(n)}</button>`).join(' ')}</div>` : '';
-    return cards + links + gone;
+    if (relView() === 'map') return viewSwitchHtml() + mapHtml(st) + gone;
+    return viewSwitchHtml() + cards + links + gone;
 }
 
 // ---------- Навыки ----------
@@ -362,6 +364,8 @@ export function achHtml(st) {
 /** Обработка кнопок. Возвращает true, если данные чата изменились (нужно сохранить). */
 export function handleTabAction(st, btn) {
     const act = btn.dataset.act;
+    const mapResult = handleMapAction(st, btn);
+    if (mapResult) return mapResult;
     if (act === 'chedit') {
         ui.editChapter = true;
         return 'render';

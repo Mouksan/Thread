@@ -41,6 +41,7 @@ import {
 import { lifeweaverFacts, lifeweaverRule, lifeweaverInstalled } from './lifeweaver.js';
 import { installBridge, reportLines } from './bridge.js';
 import { astroHtml, handleAstroAction, handleAstroInput, astroUi, saveMeName, cancelMeEdit } from './astro-tab.js';
+import { mapPointerDown, flashCard, onLegendToggle } from './relmap.js';
 import { syncHearthtide } from './astro.js';
 
 // Перехватчик генерации — имя прописано в manifest.json (generate_interceptor)
@@ -101,6 +102,8 @@ function buildWindow() {
     body.addEventListener('keydown', onBodyKey);
     body.addEventListener('focusout', onBodyBlur);
     body.addEventListener('thr-rerender', () => renderAll());
+    body.addEventListener('pointerdown', (e) => mapPointerDown(e, () => renderAll()));
+    body.addEventListener('toggle', (e) => onLegendToggle(e.target), true);
     body.addEventListener('change', async (e) => {
         if (await handleAstroInput(e.target)) renderAll();
     });
@@ -355,6 +358,7 @@ function renderAll() {
     }
     const html = { overview: (x) => overviewHtml(x, busy), rels: relsHtml, skills: skillsHtml, flags: flagsHtml, ach: achHtml }[activeTab];
     pane.innerHTML = html ? html(st) : astroHtml(st);
+    if (activeTab === 'rels') flashCard(pane);
 }
 
 function emptyHtml(text) {

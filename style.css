@@ -1380,3 +1380,150 @@ span.thr-ava {
 .thr-bday-today b {
     color: var(--SmartThemeQuoteColor);
 }
+
+/* Карта связей (по Storyline) */
+
+.thr-seg.thr-seg-2 {
+    grid-template-columns: 1fr 1fr;
+}
+
+.thr-seg button i {
+    margin-right: 4px;
+    opacity: 0.75;
+}
+
+.thr-map-zoom {
+    display: flex;
+    justify-content: flex-end;
+    gap: 4px;
+}
+
+.thr-map-zoom .menu_button {
+    width: auto;
+    min-width: 32px;
+    margin: 0;
+    padding: 4px 9px;
+}
+
+.thr-map-wrap {
+    overflow: hidden;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 10px;
+    background: rgba(127, 127, 127, 0.05);
+}
+
+.thr-map {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 70vh;
+    cursor: grab;
+    touch-action: pan-y;
+    user-select: none;
+}
+
+.thr-map:active {
+    cursor: grabbing;
+}
+
+.thr-map-node,
+.thr-map-pair {
+    cursor: pointer;
+    touch-action: none;
+}
+
+.thr-map-dot {
+    fill: var(--SmartThemeBlurTintColor);
+    stroke-width: 2.5;
+}
+
+.thr-map-node.thr-sel .thr-map-dot {
+    stroke-width: 4;
+}
+
+.thr-map-me-ring {
+    fill: var(--SmartThemeBlurTintColor);
+    stroke: var(--SmartThemeQuoteColor);
+    stroke-width: 2.5;
+}
+
+.thr-map-ini {
+    fill: var(--SmartThemeBodyColor);
+    font-size: 14px;
+    font-weight: 700;
+    text-anchor: middle;
+    pointer-events: none;
+}
+
+.thr-map-label {
+    fill: var(--SmartThemeBodyColor);
+    font-size: 10px;
+    text-anchor: middle;
+    paint-order: stroke;
+    stroke: var(--SmartThemeBlurTintColor);
+    stroke-width: 3px;
+    stroke-linejoin: round;
+    pointer-events: none;
+}
+
+.thr-map-label-me {
+    font-weight: 700;
+}
+
+.thr-map-pair:hover path:last-child {
+    opacity: 1;
+    filter: brightness(1.2);
+}
+
+.thr-map-pop-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.thr-map-pop-who {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.thr-ava.thr-ava-sm {
+    width: 34px;
+    height: 34px;
+}
+
+.thr-map-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    margin: 2px 0 6px;
+    font-size: 0.85em;
+}
+
+.thr-map-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.thr-map-legend i {
+    display: inline-block;
+    width: 16px;
+    height: 4px;
+    border-radius: 2px;
+}
+
+.thr-card.thr-flash {
+    animation: thr-flash 1.8s ease-out;
+}
+
+@keyframes thr-flash {
+    0%, 30% {
+        border-color: var(--SmartThemeQuoteColor);
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--SmartThemeQuoteColor) 45%, transparent);
+    }
+    100% {
+        box-shadow: 0 0 0 0 transparent;
+    }
+}

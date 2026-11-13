@@ -59,7 +59,7 @@ export async function startScan() {
     const { scanBackup: _old, scan: _oldScan, ...rest } = st;
     const backup = structuredClone(rest);
     const avatars = structuredClone(st.avatars || {});
-    const keep = { genre: st.genre || '', skillsOff: structuredClone(st.skillsOff || []), astro: structuredClone(st.astro || {}) };
+    const keep = { genre: st.genre || '', skillsOff: structuredClone(st.skillsOff || []), astro: structuredClone(st.astro || {}), mapPos: structuredClone(st.mapPos || {}) };
     for (const key of Object.keys(st)) delete st[key];
     Object.assign(st, emptyState(), keep, { avatars, scanBackup: backup });
     st.chapters = [{ start: 0, title: '' }];
@@ -87,8 +87,9 @@ export async function undoScan() {
     if (!st?.scanBackup || running) return;
     const backup = structuredClone(st.scanBackup);
     const avatars = structuredClone(st.avatars || {});
+    const mapPos = structuredClone(st.mapPos || {});
     for (const key of Object.keys(st)) delete st[key];
-    Object.assign(st, emptyState(), backup, { avatars: { ...(backup.avatars || {}), ...avatars } });
+    Object.assign(st, emptyState(), backup, { avatars: { ...(backup.avatars || {}), ...avatars }, mapPos: { ...(backup.mapPos || {}), ...mapPos } });
     await saveState();
     hooks.showNote('Скан отменён — отметки вернулись к тому, что было до него', { force: true });
     hooks.render();

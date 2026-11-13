@@ -117,6 +117,10 @@ export function renameCharacter(st, from, toRaw) {
         if (!st.avatars[existing]) st.avatars[existing] = st.avatars[from];
         delete st.avatars[from];
     }
+    if (st.mapPos?.[low(from)] && low(from) !== low(existing)) {
+        if (!st.mapPos[low(existing)]) st.mapPos[low(existing)] = st.mapPos[low(from)];
+        delete st.mapPos[low(from)];
+    }
     st.aliases = st.aliases && typeof st.aliases === 'object' ? st.aliases : {};
     for (const [old, now] of Object.entries(st.aliases)) if (low(now) === low(from)) st.aliases[old] = existing;
     st.aliases[low(from)] = existing;
@@ -144,6 +148,7 @@ export function removeCharacter(st, name) {
         ((e.kind === 'REL' || e.kind === 'FACT') && low(e.target) === low(name))
         || (e.kind === 'LINK' && String(e.target).split(' — ').some((x) => low(x) === low(name))))));
     if (st.avatars) delete st.avatars[name];
+    if (st.mapPos) delete st.mapPos[low(name)];
     st.ignored = [...new Set([...(st.ignored || []), low(name), ...aliasesOf(st, name)])];
     return true;
 }
