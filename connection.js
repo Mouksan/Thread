@@ -16,13 +16,16 @@ export async function requestJudge({ system, user }) {
             { role: 'user', content: user },
         ];
         // includePreset: false — ролевой пресет профиля притащил бы свой системный промпт.
-        // Веб-поиск служебному запросу не нужен; размышления — на минимум.
+        // Веб-поиск служебному запросу не нужен. Размышления — на минимум, либо не задаём вовсе:
+        // некоторые модели минимум не поддерживают и ругаются на него.
+        const overrides = { enable_web_search: false };
+        if (settings.judgeReasoning !== 'auto') overrides.reasoning_effort = 'min';
         const result = await ctx().ConnectionManagerRequestService.sendRequest(
             settings.profileId,
             messages,
             MAX_TOKENS,
             { includePreset: false, extractData: true },
-            { enable_web_search: false, reasoning_effort: 'min' },
+            overrides,
         );
         raw = String(result?.content ?? result ?? '');
     } else {

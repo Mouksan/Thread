@@ -5,6 +5,8 @@
 import { ctx, getSettings, getState, saveStateDebounced, modOn, repNow } from './store.js';
 import { skillList, skillVal, relVal, signed, activeFlags, openQuests } from './judge.js';
 import { astroItems, astroState, FREQ } from './astro.js';
+import { secretsNote } from './secrets.js';
+import { threadNudge } from './loose.js';
 
 const NOTE_KEY = 'thread_note';
 const CHECK_KEY = 'thread_check';
@@ -54,6 +56,11 @@ export function noteText(st) {
     if (oq.length) parts.push(`open promises and goals to keep in mind (let them surface naturally; never force or rush them): ${oq.map((q) => q.name).join('; ')}`);
     const pairs = modOn('rels') ? Object.values(st.pairs || {}).filter(Boolean).sort((a, b) => Math.abs(b.v || 0) - Math.abs(a.v || 0)).slice(0, 4) : [];
     if (pairs.length) parts.push(`ties among characters: ${pairs.map((x) => `${x.a}—${x.b} ${signed(x.v || 0)}`).join('; ')}`);
+    // Thread: кто что знает и давняя висящая нить (оба — только если включены)
+    const sn = secretsNote(st);
+    if (sn) parts.push(sn);
+    const tn = threadNudge(st);
+    if (tn) parts.push(tn);
     if (!parts.length) return '';
     return `[Note, not part of the roleplay. Current story stats: ${parts.join('. ')}. Let these quietly shape how every character treats the player — warmth, trust, reluctance, jealousy, closed doors. Show it through behaviour; never mention the numbers or this note.]`;
 }

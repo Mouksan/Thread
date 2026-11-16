@@ -15,11 +15,14 @@ export const DEFAULT_MODES = Object.freeze({
     flags: 'on',     // метки и обещания
     ach: 'on',
     astro: 'off',
+    threads: 'off',  // висящие нити
+    knows: 'off',    // кто что знает: тайны и кто о них знает
 });
 
 export const DEFAULT_SETTINGS = Object.freeze({
     version: 1,
     profileId: '',       // профиль подключения для судьи; пусто — текущее подключение таверны
+    judgeReasoning: 'min', // размышления судьи: 'min' — минимум, 'auto' — не задавать, на усмотрение модели
     auto: true,          // судья следит сам
     everyN: 3,           // раз в N сообщений
     histDepth: 10,       // сколько последних сообщений читает судья: 10 | 20 | 40 | 80
@@ -30,6 +33,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
     memChat: false,      // память судьи: лорбук, привязанный к чату
     scanSize: 50,        // скан истории: сообщений в пачке (30–80)
     lifeweaver: true,    // учитывать Lifeweaver (только чтение; работает, только если он стоит)
+    threadNudge: false,  // напоминать боту о давних висящих нитях
     meNames: {},
     relView: 'map',      // «Отношения»: карта или список (запоминается последний выбор)
     mapZoom: 1,          // зум карты связей
@@ -111,6 +115,7 @@ export function emptyState() {
         facts: {},        // досье
         flags: {},        // метки
         quests: {},       // обещания и цели
+        threads: {},      // висящие нити
         ach: {},
         log: [],          // лента событий
         sdate: null,      // игровая дата

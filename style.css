@@ -1092,6 +1092,43 @@ span.thr-ava {
     color: var(--thr-text-3);
 }
 
+/* Тайны: кто знает */
+
+.thr-secret {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.thr-know-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+}
+
+.thr-know-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0 2px 0 8px;
+}
+
+.thr-know-chip .thr-x {
+    width: 20px;
+    height: 20px;
+    opacity: 1;
+}
+
+.thr-know-line .thr-know-add {
+    width: auto;
+    max-width: 200px;
+    margin: 0;
+    padding: 2px 8px;
+    font-size: 0.85em;
+}
+
 /* ---------- Ачивки ---------- */
 
 .thr-ach-grid {
@@ -1142,6 +1179,21 @@ span.thr-ava {
 
 .thr-ach.thr-sealed .thr-ach-body {
     font-size: 0.9em;
+}
+
+/* Кнопка «В альбом Memento» у ачивки */
+.thr-ach {
+    position: relative;
+}
+
+.thr-ach .thr-ach-camera {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+}
+
+.thr-ach .thr-ach-body {
+    padding-right: 24px;
 }
 
 /* ---------- Скан истории ---------- */
@@ -1615,6 +1667,25 @@ span.thr-ava {
 .thr-ach-icon {
     flex: none;
     font-size: 1.9em;
+}
+
+.thr-ach-camera-big {
+    flex: none;
+    align-self: center;
+    width: 36px;
+    height: 36px;
+    margin-left: 4px;
+    color: var(--thr-rar);
+    background: transparent;
+    border: 1px solid color-mix(in srgb, var(--thr-rar) 60%, transparent);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: background-color 150ms var(--thr-ease);
+}
+
+.thr-ach-camera-big:hover,
+.thr-ach-camera-big:focus-visible {
+    background: color-mix(in srgb, var(--thr-rar) 15%, transparent);
 }
 
 .thr-ach-text {

@@ -3,7 +3,8 @@
 // ачивки — карточкой сверху по центру с цветом редкости (в духе Hearthtide).
 // По умолчанию висят до клика; «через 5 / 15 сек» — в настройках.
 
-import { getSettings, escapeHtml } from './store.js';
+import { getSettings, escapeHtml, getState } from './store.js';
+import { mementoButtonHtml, sendToMemento } from './memento.js';
 import { signed, achTitle } from './judge.js';
 import { achIcon, RARITY_LABELS } from './ach.js';
 
@@ -54,6 +55,9 @@ export function markIcon(r) {
     if (r.kind === 'LINK') return fa('fa-link');
     if (r.kind === 'PROMISE') return fa(r.on ? 'fa-scroll' : 'fa-check');
     if (r.kind === 'CHECK') return fa('fa-dice-d20');
+    if (r.kind === 'THREAD') return fa(r.on ? 'fa-circle-question' : 'fa-circle-check');
+    if (r.kind === 'LEARN') return fa('fa-eye');
+    if (r.kind === 'FACT') return fa(r.secret ? 'fa-user-secret' : 'fa-address-card');
     return fa(r.on ? 'fa-flag' : 'fa-moon');
 }
 
@@ -107,6 +111,15 @@ export function showAch(rows) {
                 <b>${escapeHtml(achTitle(r) || r.title)}</b>
                 ${r.note ? `<span>${escapeHtml(r.note)}</span>` : ''}
             </div>`;
+        // Легендарка — сразу «В альбом Memento», пока момент горячий (клик и закрывает карточку)
+        const st = getState();
+        if (rarity === 'legendary' && st?.ach?.[r.target]) {
+            const btn = mementoButtonHtml(st, r.target, st.ach[r.target], 'thr-ach-camera-big');
+            if (btn) {
+                card.insertAdjacentHTML('beforeend', btn);
+                card.querySelector('.thr-memento-btn')?.addEventListener('click', () => sendToMemento(r.target, st));
+            }
+        }
         mount(host('thr-ach-toasts'), card, MAX_ACH);
     }
     return true;

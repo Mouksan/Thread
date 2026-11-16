@@ -70,6 +70,13 @@ function renameIn(data, from, to) {
         data.facts[to] = [...all.filter((f) => !f.s).slice(-5), ...all.filter((f) => f.s).slice(-5)];
         delete data.facts[from];
     }
+    // «кто знает» в тайнах — тоже под новым именем
+    for (const arr of Object.values(data.facts || {})) {
+        for (const f of arr || []) {
+            if (!f || !Array.isArray(f.k)) continue;
+            f.k = [...new Set(f.k.map((n) => (low(n) === low(from) ? to : n)))].filter((n) => low(n) !== low(to) || !data.facts?.[to]?.includes(f));
+        }
+    }
     if (data.pairs) {
         const next = {};
         for (const p of Object.values(data.pairs)) {
@@ -137,6 +144,10 @@ export function removeCharacter(st, name) {
         if (data.rels) delete data.rels[name];
         if (data.relHist) delete data.relHist[name];
         if (data.facts) delete data.facts[name];
+        // из списков «кто знает» в чужих тайнах — тоже
+        for (const arr of Object.values(data.facts || {})) {
+            for (const f of arr || []) if (f && Array.isArray(f.k)) f.k = f.k.filter((n) => low(n) !== low(name));
+        }
         if (data.pairs) {
             for (const [k, p] of Object.entries(data.pairs)) {
                 if (p && (low(p.a) === low(name) || low(p.b) === low(name))) delete data.pairs[k];

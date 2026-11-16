@@ -10,7 +10,7 @@ import { COUNTER_ACH } from './ach.js';
 // Thread: в оригинале хранилось 4 снимка; здесь 30 — ветки и удаления уходят далеко назад.
 const SNAP_MAX = 30;
 const REDO_MAX = 10;
-const SNAP_KEYS = ['skills', 'rep', 'rels', 'flags', 'ach', 'pairs', 'facts', 'quests', 'relHist', 'repHist', 'sdate'];
+const SNAP_KEYS = ['skills', 'rep', 'rels', 'flags', 'ach', 'pairs', 'facts', 'quests', 'threads', 'relHist', 'repHist', 'sdate'];
 
 /**
  * «Личность» сообщения: номер свайпа и время создания. Меняется при свайпе и перегенерации,

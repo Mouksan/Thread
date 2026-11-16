@@ -41,6 +41,8 @@ import {
 import { lifeweaverFacts, lifeweaverRule, lifeweaverInstalled } from './lifeweaver.js';
 import { installBridge, reportLines } from './bridge.js';
 import { astroHtml, handleAstroAction, handleAstroInput, astroUi, saveMeName, cancelMeEdit } from './astro-tab.js';
+import { sendToMemento } from './memento.js';
+import { handleKnowSelect } from './loose.js';
 import { mapPointerDown, afterRelsRender, onLegendToggle, onOutsidePointer, closePopOnEsc, onLinkSelChange } from './relmap.js';
 import { syncHearthtide } from './astro.js';
 
@@ -52,7 +54,7 @@ const TABS = [
     { id: 'overview', label: 'Обзор' },
     { id: 'rels', label: 'Отношения', section: 'rels' },
     { id: 'skills', label: 'Навыки', section: 'skills' },
-    { id: 'flags', label: 'Метки', section: 'flags' },
+    { id: 'flags', label: 'Метки', sections: ['flags', 'threads', 'knows'] },
     { id: 'ach', label: 'Ачивки', section: 'ach' },
     { id: 'astro', label: 'Астро', section: 'astro' },
     { id: 'settings', label: '<i class="fa-solid fa-gear"></i>', title: 'Настройки' },
@@ -106,6 +108,12 @@ function buildWindow() {
     body.addEventListener('toggle', (e) => onLegendToggle(e.target), true);
     body.addEventListener('change', async (e) => {
         if (onLinkSelChange(e.target)) return;
+        const st0 = getState();
+        if (st0 && handleKnowSelect(st0, e.target)) {
+            await saveState();
+            renderAll();
+            return;
+        }
         if (await handleAstroInput(e.target)) renderAll();
     });
     overlay.querySelector('.thr-tabs').addEventListener('click', (e) => {
@@ -127,6 +135,10 @@ async function onBodyClick(e) {
     }
     if (btn.dataset.act === 'ava') {
         openAvatarMenu(btn, btn.dataset.name);
+        return;
+    }
+    if (btn.dataset.act === 'memento') {
+        sendToMemento(btn.dataset.key);
         return;
     }
     if (await onScanAction(btn)) return;
@@ -366,7 +378,7 @@ function switchTab(tab) {
 
 /** Вкладка видна, если её раздел в режиме «вкл». */
 function visibleTabs() {
-    return TABS.filter((t) => !t.section || modeOf(t.section) === 'on');
+    return TABS.filter((t) => (t.sections ? t.sections.some((x) => modeOf(x) === 'on') : !t.section || modeOf(t.section) === 'on'));
 }
 
 function renderAll() {
@@ -619,6 +631,14 @@ function settingsHtml() {
                 <label class="thr-label" for="thr_profile">Профиль подключения для судьи</label>
                 <select id="thr_profile" class="text_pole"></select>
                 <div class="thr-note" id="thr_profile_hint">Судья — это отдельный тихий запрос. Пусто — он пойдёт на текущее подключение таверны, то есть на основную модель.</div>
+                <div class="thr-set-row">
+                    <label class="thr-label" for="thr_reasoning">Размышления судьи</label>
+                    <select id="thr_reasoning" class="text_pole thr-num">
+                        <option value="min">минимум</option>
+                        <option value="auto">на усмотрение модели</option>
+                    </select>
+                </div>
+                <div class="thr-note">Если модель ругается на минимум размышлений — выбери «на усмотрение модели». Работает, когда выбран профиль подключения</div>
                 <label class="checkbox_label" for="thr_auto"><input id="thr_auto" type="checkbox" /> Судья следит сам</label>
                 <div class="thr-note">В новом чате первая оценка — после первого ответа бота на твоё сообщение. В старых чатах первую оценку запускаешь ты кнопкой <i class="fa-solid fa-rotate" aria-label="Поставить отметки сейчас"></i> в шапке.</div>
                 <div class="thr-set-row">
@@ -639,6 +659,8 @@ function settingsHtml() {
 ${group('Записка и сноски', `
                 <label class="checkbox_label" for="thr_influence"><input id="thr_influence" type="checkbox" /> Метки влияют на сюжет</label>
                 <div class="thr-note">Бот получает короткую скрытую записку об отношениях, репутации и метках и показывает это поведением</div>
+                <label class="checkbox_label" for="thr_nudge"><input id="thr_nudge" type="checkbox" /> Напоминать боту о давних нитях</label>
+                <div class="thr-note">Если нить висит дольше 40 сообщений, бот получает тихое напоминание о самой давней — подхватить, когда к месту. Нужен раздел «Висящие нити»</div>
                 <label class="checkbox_label" for="thr_toasts"><input id="thr_toasts" type="checkbox" /> Показывать сноски поверх чата</label>
                 <div class="thr-set-row">
                     <label class="thr-label" for="thr_toastmode">Сноска уходит</label>
@@ -710,6 +732,11 @@ function bindSettings() {
     bindCheck('thr_toasts', 'toasts');
     bindCheck('thr_memchat', 'memChat');
     bindCheck('thr_lw', 'lifeweaver');
+    bindCheck('thr_nudge', 'threadNudge');
+    $('thr_reasoning').addEventListener('change', (e) => {
+        getSettings().judgeReasoning = e.target.value === 'auto' ? 'auto' : 'min';
+        saveSettings();
+    });
     $('thr_toastmode').addEventListener('change', (e) => {
         getSettings().toastMode = ['click', '5', '15'].includes(e.target.value) ? e.target.value : 'click';
         saveSettings();
@@ -758,6 +785,8 @@ function syncSettings() {
     $('thr_repstart').value = s.repStart;
     $('thr_memchat').checked = Boolean(s.memChat);
     $('thr_lw').checked = Boolean(s.lifeweaver);
+    $('thr_nudge').checked = Boolean(s.threadNudge);
+    $('thr_reasoning').value = s.judgeReasoning === 'auto' ? 'auto' : 'min';
     $('thr_lw_note').textContent = lifeweaverInstalled()
         ? 'Lifeweaver найден. Судья видит беременности, кладки и детей как факты сюжета и не дублирует их метками; во вкладке «Метки» они видны отдельным блоком. Скрытая беременность остаётся скрытой. Сам Lifeweaver не меняется.'
         : 'Lifeweaver не установлен — связь включится сама, когда он появится.';
@@ -797,6 +826,8 @@ const SECTIONS = [
     ['rep', 'Репутация', 'Положение в мире истории'],
     ['flags', 'Метки и обещания', 'Статусы, клятвы, долги и обещания'],
     ['ach', 'Ачивки', 'Коллекция памятных моментов'],
+    ['threads', 'Висящие нити', 'Загадки и намёки, которые сюжет оставил без ответа — в «Метках»'],
+    ['knows', 'Кто что знает', 'Тайны персонажей и твои, и кто о них знает — в «Метках»'],
     ['astro', 'Астро', 'Знаки, MBTI, луна, карта и число дня, ретроградный Меркурий — по игровой дате'],
 ];
 const MODE_LABELS = { on: 'вкл', hide: 'скрыть', off: 'выкл' };

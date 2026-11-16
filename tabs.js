@@ -13,6 +13,8 @@ import { renameCharacter, removeCharacter, unignore } from './chars.js';
 import { lifeweaverFacts } from './lifeweaver.js';
 import { scanCardHtml, scanBlocks, scanBatches } from './scan.js';
 import { relView, viewSwitchHtml, mapHtml, handleMapAction, addLinkHtml, mapUi } from './relmap.js';
+import { threadsHtml, secretsHtml, handleLooseAction, knowersText } from './loose.js';
+import { mementoButtonHtml } from './memento.js';
 
 const RARITY_ORDER = { legendary: 0, rare: 1, common: 2 };
 
@@ -163,7 +165,7 @@ function factsHtml(st, name) {
     const facts = (st.facts?.[name] || []).map((f, i) => [f, i]);
     if (!facts.length) return '';
     const row = ([f, i]) => `
-        <li><span>${f.s ? '<i class="fa-solid fa-user-secret" title="Секрет"></i> ' : ''}${escapeHtml(f.t)}</span>
+        <li><span>${f.s ? '<i class="fa-solid fa-user-secret" title="Секрет"></i> ' : ''}${escapeHtml(f.t)}${f.s && modeOf('knows') === 'on' ? ` <span class="thr-note">· ${escapeHtml(knowersText(f, name))}</span>` : ''}</span>
             <button class="thr-x" type="button" data-act="rmfact" data-name="${escapeHtml(name)}" data-i="${i}" title="Убрать запись" aria-label="Убрать запись"><i class="fa-solid fa-xmark"></i></button></li>`;
     return `<ul class="thr-facts">${facts.map(row).join('')}</ul>`;
 }
@@ -318,11 +320,12 @@ export function flagsHtml(st) {
     const lwRows = lw.length ? `
         <div class="thr-sub">Из Lifeweaver — обновляются сами</div>
         <div class="thr-chips">${lw.map((f) => `<span class="thr-chip thr-lw-chip"><i class="fa-solid ${f.kind === 'children' ? 'fa-baby' : f.kind === 'clutch' ? 'fa-egg' : 'fa-seedling'} fa-fw" aria-hidden="true"></i>${escapeHtml(f.text)}</span>`).join('')}</div>` : '';
-    return `
+    const marks = modeOf('flags') === 'on' ? `
         <div class="thr-sec">Метки сюжета</div>
         ${flagRows}${goneRows}${lwRows}
         <div class="thr-sec">Обещания и цели</div>
-        ${qRows}${doneRows}`;
+        ${qRows}${doneRows}` : '';
+    return marks + threadsHtml(st) + secretsHtml(st);
 }
 
 // ---------- Ачивки ----------
@@ -337,9 +340,11 @@ export function achHtml(st) {
         .sort((a, b) => (RARITY_ORDER[builtin[a]] ?? 3) - (RARITY_ORDER[builtin[b]] ?? 3));
     const gotBuiltin = Object.keys(builtin).length - sealed.length;
 
+    const keyOf = new Map(Object.entries(st.ach).map(([k, v]) => [v, k]));
     const cards = got.map((a) => `
         <div class="thr-ach thr-rar-${a.rarity || 'common'}">
             <div class="thr-ach-ico">${achIcon(a.rarity)}</div>
+            ${mementoButtonHtml(st, keyOf.get(a), a, 'thr-x thr-ach-camera')}
             <div class="thr-ach-body">
                 <b>${escapeHtml(achTitle(a))}</b>
                 <span class="thr-ach-rar">${RARITY_LABELS[a.rarity] || ''}${a.slug ? '' : ' · придумал судья'}</span>
@@ -366,6 +371,7 @@ export function handleTabAction(st, btn) {
     const act = btn.dataset.act;
     const mapResult = handleMapAction(st, btn);
     if (mapResult) return mapResult;
+    if (handleLooseAction(st, btn)) return true;
     if (act === 'chedit') {
         ui.editChapter = true;
         return 'render';
