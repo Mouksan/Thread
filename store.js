@@ -21,6 +21,7 @@ export const DEFAULT_MODES = Object.freeze({
 
 export const DEFAULT_SETTINGS = Object.freeze({
     version: 1,
+    quickbarButton: true, // иконка Thread в панели быстрых ответов
     profileId: '',       // профиль подключения для судьи; пусто — текущее подключение таверны
     judgeReasoning: 'min', // размышления судьи: 'min' — минимум, 'auto' — не задавать, на усмотрение модели
     auto: true,          // судья следит сам

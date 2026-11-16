@@ -23,6 +23,7 @@ import {
     background, transcript, hearthtideDate, hearthtideIso, loreMemory, anchorAt, anchorHolds, characterNames, personaName,
 } from './context.js';
 import { requestJudge } from './connection.js';
+import { createQuickbarButton } from './quickbar.js';
 import { snapTake, rollbackCheck, redoCheck } from './state.js';
 import { interceptor, noteText, lastInjected, clearPrompts } from './inject.js';
 import { addDiceButton, refreshDiceButton, closeDice, setDiceChangeHandler, openDice } from './dice.js';
@@ -347,6 +348,16 @@ function bindViewport() {
     overlayEl?.addEventListener('scroll', keepOverlayOnScreen, { passive: true });
 }
 
+// Иконка в быстрых ответах: открывает и закрывает окно; пульсирует, пока думает судья или идёт скан.
+const quickbar = createQuickbarButton({
+    id: 'thr_quickbar',
+    cls: 'thr-qb',
+    icon: 'fa-diagram-project',
+    title: 'Thread',
+    isWanted: () => getSettings().quickbarButton !== false,
+    onClick: () => (isOpen() ? closeWindow() : openWindow()),
+});
+
 function openWindow(tab) {
     if (!overlayEl) buildWindow();
     syncViewportHeight();
@@ -442,6 +453,7 @@ async function evaluate({ quiet = false } = {}) {
     }
 
     busy = true;
+    quickbar.setBusy(true);
     renderAll();
     try {
         const depth = getSettings().histDepth;
@@ -499,6 +511,7 @@ async function evaluate({ quiet = false } = {}) {
         toastr.error(`${explainError(message)}<br><small>${escapeHtml(message)}</small>`, 'Thread: отметки не поставлены', { escapeHtml: false, timeOut: 9000 });
     } finally {
         busy = false;
+        quickbar.setBusy(scanRunning());
         renderAll();
         refreshDiceButton();
     }
@@ -900,11 +913,20 @@ function addSettingsDrawer() {
                         <i class="fa-solid fa-diagram-project"></i>
                         <span>Открыть Thread</span>
                     </button>
+                    <label class="checkbox_label" for="thr_quickbar_toggle">
+                        <input id="thr_quickbar_toggle" type="checkbox" ${getSettings().quickbarButton !== false ? 'checked' : ''}>
+                        Кнопка в быстрых ответах
+                    </label>
                 </div>
             </div>
         </div>`;
     host.appendChild(wrap);
     wrap.querySelector('#thr_open_panel').addEventListener('click', () => openWindow());
+    wrap.querySelector('#thr_quickbar_toggle').addEventListener('change', (e) => {
+        getSettings().quickbarButton = e.currentTarget.checked;
+        saveSettings();
+        quickbar.sync();
+    });
 }
 
 function addWandButton() {
@@ -967,11 +989,15 @@ jQuery(async () => {
     installBridge();
     addSettingsDrawer();
     addWandButton();
+    quickbar.start();
     addDiceButton();
     setDiceChangeHandler(() => { refreshDiceButton(); if (isOpen()) renderAll(); });
     setAvatarChangeHandler(() => { if (isOpen()) renderAll(); });
     setScanHooks({
-        render: () => { if (isOpen()) renderAll(); },
+        render: () => {
+            quickbar.setBusy(busy || scanRunning());
+            if (isOpen()) renderAll();
+        },
         showNote,
         showAch,
         explain: explainError,

@@ -1869,3 +1869,44 @@ span.thr-ava {
         align-items: flex-end;
     }
 }
+
+/* ---------- Кнопка в быстрых ответах (порт из Junket) ---------- */
+
+.thr-qb {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0 !important;
+    color: var(--SmartThemeBodyColor);
+    cursor: pointer;
+    user-select: none;
+    border-radius: 8px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.thr-qb--no-chat {
+    opacity: 0.4;
+}
+
+.thr-qb--busy {
+    color: var(--SmartThemeQuoteColor);
+    animation: thr-qb-pulse 1.4s ease-in-out infinite;
+    will-change: transform;
+}
+
+@keyframes thr-qb-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.12); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .thr-qb--busy {
+        opacity: 0.8;
+        animation: none;
+        will-change: auto;
+    }
+}
