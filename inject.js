@@ -2,7 +2,7 @@
 // Порт из Storyline (writeInject + generation:prepare в actions.js), под таверну:
 // перехватчик генерации (generate_interceptor в manifest.json) решает, что положить в extension prompt.
 
-import { ctx, getSettings, getState, saveStateDebounced, modOn, repNow } from './store.js';
+import { ctx, getSettings, getState, saveStateDebounced, modOn, repNow, isEnabled } from './store.js';
 import { skillList, skillVal, relVal, signed, activeFlags, openQuests } from './judge.js';
 import { astroItems, astroState, FREQ } from './astro.js';
 import { secretsNote } from './secrets.js';
@@ -101,7 +101,7 @@ export let lastInjected = null;
 export async function interceptor(chat, contextSize, abort, type) {
     try {
         // Тихие запросы (служебные генерации других расширений) и «писать за меня» — без записок
-        if (type === 'quiet' || type === 'impersonate') {
+        if (type === 'quiet' || type === 'impersonate' || !isEnabled()) {
             clearPrompts();
             return;
         }

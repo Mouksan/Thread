@@ -189,6 +189,17 @@
     padding: 4px 8px;
 }
 
+/* Плашка «Thread выключен» над вкладками */
+
+.thr-card.thr-off {
+    margin-bottom: 12px;
+    border-color: var(--thr-line-2);
+}
+
+.thr-card.thr-off[hidden] {
+    display: none;
+}
+
 /* Содержимое */
 
 .thr-body {

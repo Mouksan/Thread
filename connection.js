@@ -7,7 +7,7 @@ import { ctx, getSettings } from './store.js';
 const MAX_TOKENS = 3000;
 
 /** Отправляет запрос судье и возвращает текст ответа. */
-export async function requestJudge({ system, user }) {
+export async function requestJudge({ system, user, signal = null }) {
     const settings = getSettings();
     let raw;
     if (settings.profileId) {
@@ -24,12 +24,13 @@ export async function requestJudge({ system, user }) {
             settings.profileId,
             messages,
             MAX_TOKENS,
-            { includePreset: false, extractData: true },
+            { includePreset: false, extractData: true, ...(signal ? { signal } : {}) },
             overrides,
         );
         raw = String(result?.content ?? result ?? '');
     } else {
-        // Профиль не выбран — текущее подключение таверны.
+        // Профиль не выбран — текущее подключение таверны. Её тихую генерацию снаружи не прервать:
+        // при «стопе» ответ дождёмся и выбросим (это решает вызывающий).
         const result = await ctx().generateRaw({
             prompt: [{ role: 'user', content: user }],
             systemPrompt: system,

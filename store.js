@@ -22,6 +22,7 @@ export const DEFAULT_MODES = Object.freeze({
 export const DEFAULT_SETTINGS = Object.freeze({
     version: 1,
     quickbarButton: true, // иконка Thread в панели быстрых ответов
+    enabled: true,       // общий выключатель Thread (в ящике расширения)
     profileId: '',       // профиль подключения для судьи; пусто — текущее подключение таверны
     judgeReasoning: 'min', // размышления судьи: 'min' — минимум, 'auto' — не задавать, на усмотрение модели
     auto: true,          // судья следит сам
@@ -68,6 +69,11 @@ export function getSettings() {
 
 export function saveSettings() {
     ctx().saveSettingsDebounced();
+}
+
+/** Thread включён (общий выключатель в ящике расширения). Выключен — данные лежат, но ничего не делается. */
+export function isEnabled() {
+    return getSettings().enabled !== false;
 }
 
 export function modeOf(section) {

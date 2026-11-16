@@ -4,8 +4,9 @@
 //   Thread.check(skill, 'easy'|'mid'|'hard'|'epic', { arm }) → бросок d20 (arm: false — только узнать исход)
 //   Thread.report({ source, text }) → «у меня в сюжете случилось» — судья учтёт при следующей оценке
 //   событие окна 'thread:update' — после каждого сохранения отметок (детали — через summary()).
+//   Thread выключен (общий выключатель) — summary() отдаёт null, check() — null, report() — false.
 
-import { getState, saveState, modOn, repNow, repLevel, relLevel } from './store.js';
+import { getState, saveState, modOn, repNow, repLevel, relLevel, isEnabled } from './store.js';
 import { skillList, skillVal, relVal, signed, activeFlags, openQuests, achTitle } from './judge.js';
 import { genreOf } from './genres.js';
 import { rollCheck } from './dice.js';
@@ -14,7 +15,7 @@ const MAX_REPORTS = 10;
 
 function summary() {
     const st = getState();
-    if (!st) return null;
+    if (!st || !isEnabled()) return null;
     const facts = {};
     if (modOn('facts')) {
         for (const [n, list] of Object.entries(st.facts || {})) facts[n] = (list || []).map((f) => ({ text: f.t, secret: Boolean(f.s) }));
@@ -49,7 +50,7 @@ function promptText() {
 
 async function check(skill, dcKey = 'mid', opts = {}) {
     const st = getState();
-    if (!st || !modOn('skills')) return null;
+    if (!st || !isEnabled() || !modOn('skills')) return null;
     const name = skillList(st).find((e) => e.name.toLowerCase() === String(skill || '').toLowerCase())?.name || String(skill || '').trim();
     if (!name) return null;
     return rollCheck(name, dcKey, { arm: opts.arm !== false });
@@ -58,7 +59,7 @@ async function check(skill, dcKey = 'mid', opts = {}) {
 async function report(event) {
     const st = getState();
     const text = String(event?.text || '').replace(/\s+/g, ' ').trim().slice(0, 240);
-    if (!st || !text) return false;
+    if (!st || !text || !isEnabled()) return false;
     const source = String(event?.source || 'другое расширение').slice(0, 40);
     st.reports = (Array.isArray(st.reports) ? st.reports : []).concat([{ source, text, at: Date.now() }]).slice(-MAX_REPORTS);
     await saveState();

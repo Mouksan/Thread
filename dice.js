@@ -2,7 +2,7 @@
 // Иконка у поля ввода → окошко: навык, сложность, «Бросить d20». Без запросов к модели:
 // исход «заряжается» и уходит боту вместе со следующим ответом.
 
-import { ctx, getState, saveState, escapeHtml, modOn } from './store.js';
+import { ctx, getState, saveState, escapeHtml, modOn, isEnabled } from './store.js';
 import { skillList, skillVal, pushLog } from './judge.js';
 import { reconcileSkills } from './genres.js';
 import { checkNoteText, armedCheck } from './inject.js';
@@ -185,7 +185,7 @@ export function refreshDiceButton() {
     const btn = document.getElementById('thr-dice-btn');
     if (!btn) return;
     const st = getState();
-    btn.style.display = modOn('skills') ? '' : 'none';
+    btn.style.display = isEnabled() && modOn('skills') ? '' : 'none';
     const armed = armedCheck(st);
     btn.classList.toggle('thr-armed', Boolean(armed));
     btn.title = armed ? `Бросок заряжен: ${RES_LABELS[armed.res]} (${armed.skill})` : 'Проверка навыка (d20)';

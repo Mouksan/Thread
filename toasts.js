@@ -3,7 +3,7 @@
 // ачивки — карточкой сверху по центру с цветом редкости (в духе Hearthtide).
 // По умолчанию висят до клика; «через 5 / 15 сек» — в настройках.
 
-import { getSettings, escapeHtml, getState } from './store.js';
+import { getSettings, escapeHtml, getState, isEnabled } from './store.js';
 import { mementoButtonHtml, sendToMemento } from './memento.js';
 import { signed, achTitle } from './judge.js';
 import { achIcon, RARITY_LABELS } from './ach.js';
@@ -80,7 +80,7 @@ function cornerCard(html, type) {
 
 /** Отметки судьи. Возвращает true, если сноска показана (для «Последнего ответа судьи»). */
 export function showMarks(rows) {
-    if (!getSettings().toasts || !rows?.length) return false;
+    if (!isEnabled() || !getSettings().toasts || !rows?.length) return false;
     const top = rows.slice().sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, 5);
     const ups = top.filter((r) => r.delta > 0 || r.on === true).length;
     const downs = top.filter((r) => r.delta < 0 || r.on === false).length;
@@ -92,13 +92,14 @@ export function showMarks(rows) {
 
 /** Служебная заметка Thread (откат, «судья молчит» и т.п.) — в том же углу. */
 export function showNote(text, { force = false } = {}) {
-    if (!force && !getSettings().toasts) return;
+    // force — прямой ответ на клик: его показываем и при выключенном Thread
+    if (!force && (!isEnabled() || !getSettings().toasts)) return;
     cornerCard(`<div class="thr-toast-title"><i class="fa-solid fa-diagram-project"></i> Thread</div><div class="thr-toast-text">${escapeHtml(text)}</div>`, 'info');
 }
 
 /** Ачивки — по центру сверху. */
 export function showAch(rows) {
-    if (!getSettings().toasts || !rows?.length) return false;
+    if (!isEnabled() || !getSettings().toasts || !rows?.length) return false;
     for (const r of rows.slice(0, MAX_ACH)) {
         const rarity = r.rarity || 'common';
         const card = document.createElement('div');

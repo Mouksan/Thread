@@ -14,7 +14,7 @@
 
 import {
     ctx, getSettings, saveSettings, escapeHtml, clampInt, currentChatId,
-    getState, saveState, META_KEY, modeOf, modOn, HIST_DEPTHS, DEFAULT_MODES, plural,
+    getState, saveState, META_KEY, modeOf, modOn, HIST_DEPTHS, DEFAULT_MODES, plural, isEnabled,
 } from './store.js';
 import {
     judgeNeeded, systemPrompt, userPrompt, parse, parseDate, applyRow,
@@ -66,6 +66,8 @@ let activeTab = 'overview';
 let resetArmed = false;
 let resetTimer = null;
 let busy = false;          // судья думает
+let judgeAbort = null;     // отмена текущего запроса судье (⟳ ещё раз)
+let stopAsked = false;     // попросили остановить оценку
 let lastJudge = null;      // последний запрос судье — для отладки, живёт до перезагрузки страницы
 
 // ---------- Окно ----------
@@ -84,6 +86,10 @@ function buildWindow() {
             </div>
             <div class="thr-tabs" role="tablist"></div>
             <div class="thr-body">
+                <div class="thr-card thr-off" hidden>
+                    <div>Thread выключен — судья не следит, бот не получает записку. Данные этого чата на месте</div>
+                    <button class="menu_button thr-wide-btn" type="button" data-act="threnable"><i class="fa-solid fa-power-off"></i><span>Включить</span></button>
+                </div>
                 <div class="thr-pane" data-pane="overview"></div>
                 <div class="thr-pane" data-pane="rels"></div>
                 <div class="thr-pane" data-pane="skills"></div>
@@ -136,6 +142,10 @@ async function onBodyClick(e) {
     }
     if (btn.dataset.act === 'ava') {
         openAvatarMenu(btn, btn.dataset.name);
+        return;
+    }
+    if (btn.dataset.act === 'threnable') {
+        setEnabled(true);
         return;
     }
     if (btn.dataset.act === 'memento') {
@@ -230,6 +240,10 @@ async function onScanAction(btn) {
     if (!['scanstart', 'scanstop', 'scanresume', 'scanundo', 'scanok'].includes(act)) return false;
     const st = getState();
     if (!st) return true;
+    if (!isEnabled() && (act === 'scanstart' || act === 'scanresume')) {
+        showNote('Thread выключен — включи его, чтобы читать историю', { force: true });
+        return true;
+    }
     if (act === 'scanstart') {
         if (busy || scanRunning()) return true;
         if (st.touched && !confirmTwice(btn, 'scanstart', 'В чате уже есть отметки — скан начнёт с чистого листа. Нажми ещё раз')) return true;
@@ -354,7 +368,7 @@ const quickbar = createQuickbarButton({
     cls: 'thr-qb',
     icon: 'fa-diagram-project',
     title: 'Thread',
-    isWanted: () => getSettings().quickbarButton !== false,
+    isWanted: () => isEnabled() && getSettings().quickbarButton !== false,
     onClick: () => (isOpen() ? closeWindow() : openWindow()),
 });
 
@@ -407,7 +421,12 @@ function renderAll() {
 
     const refresh = overlayEl.querySelector('.thr-refresh');
     refresh.classList.toggle('thr-spin', busy);
-    refresh.disabled = busy || !currentChatId() || scanBlocks(getState());
+    // Пока судья думает, ⟳ — это «стоп»
+    refresh.disabled = !busy && (!isEnabled() || !currentChatId() || scanBlocks(getState()));
+    const refreshTitle = busy ? 'Остановить оценку' : 'Поставить отметки сейчас';
+    refresh.title = refreshTitle;
+    refresh.setAttribute('aria-label', refreshTitle);
+    overlayEl.querySelector('.thr-off').hidden = isEnabled();
 
     const st = getState();
     if (activeTab === 'settings') {
@@ -432,7 +451,7 @@ function emptyHtml(text) {
 
 /** Судья читает свежий кусок истории и ставит отметки. */
 async function evaluate({ quiet = false } = {}) {
-    if (busy) return;
+    if (busy || !isEnabled()) return;
     if (scanBlocks(getState())) {
         if (!quiet) showNote('Сейчас идёт скан истории — дождись его или отмени', { force: true });
         return;
@@ -453,6 +472,8 @@ async function evaluate({ quiet = false } = {}) {
     }
 
     busy = true;
+    stopAsked = false;
+    judgeAbort = new AbortController();
     quickbar.setBusy(true);
     renderAll();
     try {
@@ -467,8 +488,15 @@ async function evaluate({ quiet = false } = {}) {
         const anchor = anchorAt(total - 1); // что именно прочитал судья
         lastJudge = { at: new Date(), mode: quiet ? 'авто' : 'вручную', chars: system.length + user.length, system, user, raw: '', error: '', result: '' };
 
-        const raw = await requestJudge({ system, user });
+        const raw = await requestJudge({ system, user, signal: judgeAbort.signal });
         lastJudge.raw = raw;
+
+        // Остановили ⟳ — ответ (если он всё же пришёл) выбрасываем
+        if (stopAsked) {
+            lastJudge.result = 'не применено: оценку остановили';
+            showNote('Оценка остановлена', { force: true });
+            return;
+        }
 
         // Пока судья думал, чат сменили или ответ перегенерировали — его выводы уже про другой текст
         if (currentChatId() !== chatId) {
@@ -505,12 +533,19 @@ async function evaluate({ quiet = false } = {}) {
         if (!applied.length && !quiet) showNote('Судья молчит — за это время ничего не изменилось');
         lastJudge.result = `применено: ${applied.length}${applied.length ? (achShown || marksShown ? ' · сноска показана' : ' · сноска не показана (сноски выключены или это только досье)') : ''}`;
     } catch (error) {
+        if (stopAsked) { // отменённый запрос падает с ошибкой — это не ошибка, а «стоп»
+            if (lastJudge) lastJudge.result = 'не применено: оценку остановили';
+            showNote('Оценка остановлена', { force: true });
+            return;
+        }
         const message = String(error?.message || error || 'Unknown error').slice(0, 300);
         if (lastJudge) lastJudge.error = message;
         console.error('[Thread] судья:', error);
         toastr.error(`${explainError(message)}<br><small>${escapeHtml(message)}</small>`, 'Thread: отметки не поставлены', { escapeHtml: false, timeOut: 9000 });
     } finally {
         busy = false;
+        judgeAbort = null;
+        stopAsked = false;
         quickbar.setBusy(scanRunning());
         renderAll();
         refreshDiceButton();
@@ -519,6 +554,12 @@ async function evaluate({ quiet = false } = {}) {
 
 /** ⟳ руками: сначала сверяемся с чатом (вдруг что-то удалили), потом оцениваем. */
 async function onRefreshClick() {
+    if (busy) { // крутится — второй клик останавливает оценку
+        stopAsked = true;
+        try { judgeAbort?.abort(); } catch { /* таверна могла уже закончить */ }
+        return;
+    }
+    if (!isEnabled()) return;
     await syncWithChat('⟳');
     const st = getState();
     if (st) st.rerollWait = null; // попросили явно — не ждём следующего сообщения
@@ -587,7 +628,7 @@ function lastIsBot() {
 
 /** Авто: раз в N сообщений после ответа бота. В новом чате — первая оценка после первого ответа бота. */
 async function checkAuto() {
-    if (busy) return;
+    if (busy || !isEnabled()) return;
     const st = getState();
     if (!st || scanBlocks(st)) return;
     await syncWithChat('авто');
@@ -908,6 +949,10 @@ function addSettingsDrawer() {
             </div>
             <div class="inline-drawer-content">
                 <div class="thr-drawer">
+                    <label class="checkbox_label" for="thr_enabled">
+                        <input id="thr_enabled" type="checkbox" ${isEnabled() ? 'checked' : ''}>
+                        Thread включён
+                    </label>
                     <div class="thr-note">Судья сюжета: отношения, навыки, репутация, метки и обещания. Настройки — под шестерёнкой в окне.</div>
                     <button id="thr_open_panel" class="menu_button thr-open-btn" type="button">
                         <i class="fa-solid fa-diagram-project"></i>
@@ -922,11 +967,38 @@ function addSettingsDrawer() {
         </div>`;
     host.appendChild(wrap);
     wrap.querySelector('#thr_open_panel').addEventListener('click', () => openWindow());
+    wrap.querySelector('#thr_enabled').addEventListener('change', (e) => setEnabled(e.currentTarget.checked));
     wrap.querySelector('#thr_quickbar_toggle').addEventListener('change', (e) => {
         getSettings().quickbarButton = e.currentTarget.checked;
         saveSettings();
         quickbar.sync();
     });
+}
+
+/**
+ * Общий выключатель. Выключен: судья молчит, боту ничего не уходит, кнопки у поля ввода
+ * и в быстрых ответах прячутся, сноски не всплывают, скан встаёт на паузу. Данные чатов не трогаются.
+ */
+function setEnabled(on) {
+    getSettings().enabled = Boolean(on);
+    saveSettings();
+    const box = document.getElementById('thr_enabled');
+    if (box) box.checked = Boolean(on);
+    if (!on) {
+        clearTimeout(autoTimer);
+        if (scanRunning()) stopScan(); // пауза, как по «Стоп» — продолжишь после включения
+        clearPrompts();
+        closeDice();
+    }
+    refreshWandButton();
+    quickbar.sync();
+    refreshDiceButton();
+    if (isOpen()) renderAll();
+}
+
+function refreshWandButton() {
+    const item = document.getElementById('thr-wand');
+    if (item) item.style.display = isEnabled() ? '' : 'none';
 }
 
 function addWandButton() {
@@ -939,6 +1011,7 @@ function addWandButton() {
     item.innerHTML = '<div class="fa-solid fa-diagram-project extensionsMenuExtensionButton"></div><span>Thread</span>';
     item.addEventListener('click', () => openWindow());
     menu.appendChild(item);
+    refreshWandButton();
 }
 
 function onChatChanged() {
@@ -956,7 +1029,7 @@ function onChatChanged() {
     // ДР с Hearthtide: его откат мог стереть то, что Thread туда дописал, — сводим заново
     try {
         const st = getState();
-        if (st && modeOf('astro') !== 'off' && syncHearthtide(st)) saveState();
+        if (st && isEnabled() && modeOf('astro') !== 'off' && syncHearthtide(st)) saveState();
     } catch (e) { console.error('[Thread] ДР и Hearthtide:', e); }
     // Ветка от середины чата приносит отметки «из будущего» — возвращаем их к точке ветвления
     syncWithChat('смена чата').catch((e) => console.error('[Thread] откат:', e));
@@ -966,7 +1039,7 @@ function onChatChanged() {
 /** Ачивки-счётчики (100 сообщений и т.п.) — на каждом сообщении, без запросов к модели. */
 async function checkCounters() {
     const st = getState();
-    if (!st || busy) return;
+    if (!st || busy || !isEnabled()) return;
     const got = checkMilestones(st);
     if (!got.length) return;
     await saveState();
